@@ -1,6 +1,26 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+struct Preset
+{
+    juce::String nombre;
+    float mix;
+    float decay;
+    float preDelay;
+    float hpf;
+    float lpf;
+    int irSelect;
+    bool esDeUsuario;
+    juce::File archivoOrigen;
+};
+
+std::vector<Preset> listaCompletaPresets;
+
+const std::vector<Preset> presetsDeFabrica = {
+    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
+    { "Testfull", 1.0f, 5.0f, 150.0f, 20.0f, 20000.0f, 0, false, {}},
+};
+
 Reverb402AudioProcessor::Reverb402AudioProcessor()
     : AudioProcessor (BusesProperties()
                     .withInput ("Input", juce::AudioChannelSet::stereo(), true)
@@ -16,6 +36,8 @@ Reverb402AudioProcessor::Reverb402AudioProcessor()
     paramLPF = listaParametros.getRawParameterValue("lpf");
     paramPreDelay = listaParametros.getRawParameterValue("predelay");
     paramIRSelection = listaParametros.getRawParameterValue("ir_select");
+
+    actualizarListaPresets();
 }
 
 Reverb402AudioProcessor::~Reverb402AudioProcessor() {}
@@ -369,38 +391,299 @@ void Reverb402AudioProcessor::releaseResources()
 
 int Reverb402AudioProcessor::getNumPrograms()
 {
-    return 1;
+    return static_cast<int> (listaCompletaPresets.size());
 }
 
 int Reverb402AudioProcessor::getCurrentProgram()
 {
-    return 0;
+    return programaActual;
 }
 
 void Reverb402AudioProcessor::setCurrentProgram (int index)
 {
+    if (index < 0 || index >= getNumPrograms())
+        return;
+    
+    programaActual = index;
+    const auto& preset = listaCompletaPresets[index];
+
+    if (auto* pMix = listaParametros.getParameter("mix"))
+        pMix->setValueNotifyingHost (preset.mix);
+    if (auto* pDecay = listaParametros.getParameter ("decay"))
+        pDecay->setValueNotifyingHost (listaParametros.getParameterRange ("decay").convertTo0to1 (preset.decay));
+    if (auto* pPre = listaParametros.getParameter ("predelay"))
+        pPre->setValueNotifyingHost (listaParametros.getParameterRange ("predelay").convertTo0to1 (preset.preDelay));
+    if (auto* pHPF = listaParametros.getParameter ("hpf"))
+        pHPF->setValueNotifyingHost (listaParametros.getParameterRange ("hpf").convertTo0to1 (preset.hpf));
+    if (auto* pLPF = listaParametros.getParameter ("lpf"))
+        pLPF->setValueNotifyingHost (listaParametros.getParameterRange ("lpf").convertTo0to1 (preset.lpf));
+    if (auto* pIR = listaParametros.getParameter ("ir_select"))
+        pIR->setValueNotifyingHost (listaParametros.getParameterRange ("ir_select").convertTo0to1 (static_cast<float>(preset.irSelect)));
+
+    updateHostDisplay();
 }
 
 const juce::String Reverb402AudioProcessor::getProgramName (int index)
 {
-    return {};
+    if (index >= 0 && index < getNumPrograms())
+        return listaCompletaPresets[static_cast<size_t> (index)].nombre;
+        
+    return "Default";
 }
 
 void Reverb402AudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
 }
 
+juce::File Reverb402AudioProcessor::obtenerCarpetaPresetsUsuario()
+{
+    auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+    auto carpetaPlugin = appData.getChildFile ("UNTREF").getChildFile ("Reverb402");
+    carpetaPlugin.createDirectory();
+    return carpetaPlugin;
+}
+
+void Reverb402AudioProcessor::actualizarListaPresets()
+{
+    listaCompletaPresets.clear();
+
+    for (const auto& p : presetsDeFabrica)
+        listaCompletaPresets.push_back (p);
+    
+    auto carpetaUser = obtenerCarpetaPresetsUsuario();
+    juce::Array<juce::File> archivosXML;
+    carpetaUser.findChildFiles (archivosXML, juce::File::findFiles, false, "*.xml");
+
+    for (auto& archivo : archivosXML)
+    {
+        std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (archivo));
+        if (xml != nullptr && xml->hasTagName (listaParametros.state.getType()))
+        {
+            Preset pUser;
+
+            pUser.nombre = archivo.getFileNameWithoutExtension();
+            pUser.esDeUsuario = true;
+            pUser.archivoOrigen = archivo;
+            pUser.mix = xml->getDoubleAttribute ("mix", 0.5);
+            pUser.decay = xml->getDoubleAttribute ("decay", 1.0);
+            pUser.preDelay = xml->getDoubleAttribute ("predelay", 0.0);
+            pUser.hpf = xml->getDoubleAttribute ("hpf", 20.0);
+            pUser.lpf = xml->getDoubleAttribute ("lpf", 20000.0);
+            pUser.irSelect = xml->getIntAttribute ("ir_select", 0);
+
+            listaCompletaPresets.push_back (pUser);
+        }
+    }
+}
+
+void Reverb402AudioProcessor::guardarPresetRapido(const juce::String& nombrePreset)
+{
+    if (nombrePreset.isEmpty()) return;
+
+    auto carpetaUser = obtenerCarpetaPresetsUsuario();
+    auto archivoDestino = carpetaUser.getChildFile (nombrePreset).withFileExtension (".xml");
+
+    std::unique_ptr<juce::XmlElement> xml (new juce::XmlElement (listaParametros.state.getType()));
+
+    xml->setAttribute ("mix", paramMix->load());
+    xml->setAttribute ("decay", paramDecay->load());
+    xml->setAttribute ("predelay", paramPreDelay->load());
+    xml->setAttribute ("hpf", paramHPF->load());
+    xml->setAttribute ("lpf", paramLPF->load());
+    xml->setAttribute ("ir_select", static_cast<int>(paramIRSelection->load()));
+
+    xml->writeTo (archivoDestino);
+
+    actualizarListaPresets();
+}
+
+void Reverb402AudioProcessor::eliminarPresetActual (int index)
+{
+    if (index < 0 || index >= static_cast<int> (listaCompletaPresets.size()))
+        return;
+
+    const auto& preset = listaCompletaPresets[static_cast<size_t> (index)];
+
+    if (preset.esDeUsuario && preset.archivoOrigen.existsAsFile())
+    {
+        preset.archivoOrigen.deleteFile();
+        
+        actualizarListaPresets();
+    }
+}
+
+bool Reverb402AudioProcessor::esPresetDeUsuario (int index)
+{
+    if (index >= 0 && index < static_cast<int> (listaCompletaPresets.size()))
+        return listaCompletaPresets[static_cast<size_t> (index)].esDeUsuario;
+        
+    return false;
+}
+
 juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
 {
-    return new juce::GenericAudioProcessorEditor (*this);
+    auto* editorGenerico = new juce::GenericAudioProcessorEditor (*this);
+    
+    class EditorConPresets : public juce::AudioProcessorEditor
+    {
+    public:
+        EditorConPresets (Reverb402AudioProcessor& p, juce::AudioProcessorEditor* contenido)
+            : AudioProcessorEditor (p), processor (p), editorInterno (contenido)
+        {
+            addAndMakeVisible (editorInterno.get());
+            
+            // Función auxiliar interna para actualizar el estado del botón Borrar
+            auto chequearSiEsBorrable = [this] {
+                // Solo es visible si el preset actual es del usuario
+                btnBorrar.setVisible (processor.esPresetDeUsuario (idxLocal));
+            };
+            
+            // Botón Anterior
+            btnAnterior.setButtonText ("<- Preset");
+            addAndMakeVisible (btnAnterior);
+            btnAnterior.onClick = [this, chequearSiEsBorrable] {
+                int totalPrograms = processor.getNumPrograms();
+                if (totalPrograms > 0)
+                {
+                    idxLocal = (idxLocal - 1 + totalPrograms) % totalPrograms;
+                    processor.setCurrentProgram (idxLocal);
+                    lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
+                    chequearSiEsBorrable();
+                }
+            };
+            
+            // Botón Siguiente
+            btnSiguiente.setButtonText ("Preset ->");
+            addAndMakeVisible (btnSiguiente);
+            btnSiguiente.onClick = [this, chequearSiEsBorrable] {
+                int totalPrograms = processor.getNumPrograms();
+                if (totalPrograms > 0)
+                {
+                    idxLocal = (idxLocal + 1) % totalPrograms;
+                    processor.setCurrentProgram (idxLocal);
+                    lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
+                    chequearSiEsBorrable();
+                }
+            };
+
+            // Botón Guardar
+            btnGuardar.setButtonText ("Guardar Nuevo");
+            addAndMakeVisible (btnGuardar);
+            btnGuardar.onClick = [this, chequearSiEsBorrable] {
+                auto* aw = new juce::AlertWindow ("Guardar Preset",
+                                                  "Introduce el nombre para tu preset de usuario:",
+                                                  juce::MessageBoxIconType::NoIcon,
+                                                  this);
+
+                aw->addTextEditor ("nombrePreset", "Mi Preset Custom", "");
+                aw->addButton ("Guardar", 1, juce::KeyPress (juce::KeyPress::returnKey, 0, 0));
+                aw->addButton ("Cancelar", 0, juce::KeyPress (juce::KeyPress::escapeKey, 0, 0));
+
+                aw->enterModalState (true, juce::ModalCallbackFunction::create ([this, aw, chequearSiEsBorrable] (int resultado)
+                {
+                    if (resultado == 1)
+                    {
+                        if (auto* editorTexto = aw->getTextEditor ("nombrePreset"))
+                        {
+                            juce::String texto = editorTexto->getText();
+                            if (texto.isNotEmpty())
+                            {
+                                processor.guardarPresetRapido (texto);
+                                idxLocal = processor.getNumPrograms() - 1;
+                                processor.setCurrentProgram (idxLocal);
+                                lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
+                                chequearSiEsBorrable();
+                            }
+                        }
+                    }
+                    delete aw;
+                }), true);
+            };
+
+            // Botón Borrar (Mapeado con estética roja de advertencia)
+            btnBorrar.setButtonText ("Borrar");
+            btnBorrar.setColour (juce::TextButton::buttonColourId, juce::Colours::darkred);
+            addAndMakeVisible (btnBorrar);
+            btnBorrar.onClick = [this, chequearSiEsBorrable] {
+                // Cartel de confirmación para que no metan el dedo sin querer
+                juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon,
+                    "¿Borrar Preset?",
+                    "¿Estás seguro de que querés eliminar \"" + processor.getProgramName(idxLocal) + "\"? Esta acción no se puede deshacer.",
+                    "Sí, Borrar", "Cancelar", this,
+                    juce::ModalCallbackFunction::create([this, chequearSiEsBorrable](int resultado) 
+                    {
+                        if (resultado == 1) // El usuario confirmó
+                        {
+                            processor.eliminarPresetActual (idxLocal);
+                            
+                            // Mandamos al usuario de vuelta al preset 0 (Default) de forma segura
+                            idxLocal = 0;
+                            processor.setCurrentProgram (idxLocal);
+                            lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
+                            chequearSiEsBorrable();
+                        }
+                    }));
+            };
+            
+            // Etiqueta de Nombre
+            lblNombre.setJustificationType (juce::Justification::centred);
+            lblNombre.setColour (juce::Label::backgroundColourId, juce::Colours::black.withAlpha (0.5f));
+            lblNombre.setColour (juce::Label::textColourId, juce::Colours::white);
+            addAndMakeVisible (lblNombre);
+            
+            // Inicialización de la UI
+            idxLocal = processor.getCurrentProgram();
+            lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
+            chequearSiEsBorrable(); // Oculta el botón borrar al inicio si arranca en uno de fábrica
+            
+            setSize (editorInterno->getWidth(), editorInterno->getHeight() + 40);
+        }
+        
+        void resized() override
+        {
+            auto zona = getLocalBounds();
+            auto barraSuperior = zona.removeFromTop (40).reduced (5);
+            
+            btnAnterior.setBounds (barraSuperior.removeFromLeft (80));
+            
+            // Acomodamos los botones derechos en cascada desde la derecha
+            btnGuardar.setBounds (barraSuperior.removeFromRight (110));
+            btnBorrar.setBounds (barraSuperior.removeFromRight (70)); // <-- Espacio para el botón de borrar
+            btnSiguiente.setBounds (barraSuperior.removeFromRight (80));
+            
+            lblNombre.setBounds (barraSuperior.reduced (5, 0));
+            
+            editorInterno->setBounds (zona);
+            lblNombre.toFront (false);
+        }
+        
+    private:
+        Reverb402AudioProcessor& processor;
+        std::unique_ptr<juce::AudioProcessorEditor> editorInterno;
+        juce::TextButton btnAnterior, btnSiguiente, btnGuardar, btnBorrar;
+        juce::Label lblNombre;
+        int idxLocal = 0;
+    };
+    
+    return new EditorConPresets (*this, editorGenerico);
 }
 
 void Reverb402AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
+    auto estado = listaParametros.copyState();
+    std::unique_ptr<juce::XmlElement> xml (estado.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void Reverb402AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
+    std::unique_ptr<juce::XmlElement> xmlEstado (getXmlFromBinary (data, sizeInBytes));
+
+    if (xmlEstado != nullptr)
+    {
+        if (xmlEstado->hasTagName (listaParametros.state.getType()))
+            listaParametros.replaceState (juce::ValueTree::fromXml (*xmlEstado));
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

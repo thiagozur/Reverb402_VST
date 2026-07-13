@@ -25,6 +25,11 @@ public:
     void setCurrentProgram (int index) override;
     const juce::String getProgramName (int index) override;
     void changeProgramName (int index, const juce::String& newName) override;
+    juce::File obtenerCarpetaPresetsUsuario();
+    void actualizarListaPresets();
+    void guardarPresetRapido(const juce::String& nombrePreset);
+    void eliminarPresetActual (int index);
+    bool esPresetDeUsuario (int index);
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
@@ -70,6 +75,7 @@ private:
     };
 
     int ultimaIrCargada = -1;
+    int programaActual = 0;
 
     juce::File obtenerArchivoIRFijo (int indice);
 
@@ -77,6 +83,12 @@ private:
     
     juce::AudioProcessorValueTreeState listaParametros;
     juce::AudioProcessorValueTreeState::ParameterLayout crearLayoutParametros();
+
+    juce::ThreadPool hiloDeFondo { 1 };
+    juce::CriticalSection cerrojoIR;
+    std::atomic<bool> hayNuevaIRLista { false };
+    juce::AudioBuffer<float> irModificadaEnFondo;
+    double fsIRModificada = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Reverb402AudioProcessor)
 };
