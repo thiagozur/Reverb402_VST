@@ -5,7 +5,16 @@ project(Reverb402 VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_subdirectory("E:/E/dev/JUCE" JUCE) 
+include(FetchContent)
+
+FetchContent_Declare(
+    juce
+    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+    GIT_TAG 8.0.14
+    GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(juce)
 
 juce_add_plugin(Reverb402
     COMPANY_NAME "UNTREF"
