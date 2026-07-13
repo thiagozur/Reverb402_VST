@@ -174,7 +174,7 @@ void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
                 float duracionSeg = static_cast<float>(muestrasArchivo) / static_cast<float>(fsIR);
                 float compensacionPorDuracion = std::sqrt (duracionSeg);
 
-                factorCompensacionIR = (0.12f / rmsTotalIR) * compensacionPorDuracion;
+                factorCompensacionIR = (0.10f / rmsTotalIR) * compensacionPorDuracion;
                 factorCompensacionIR = juce::jlimit (0.1f, 8.0f, factorCompensacionIR);
             }
             else
@@ -264,7 +264,7 @@ juce::AudioBuffer<float> Reverb402AudioProcessor::modificarDecayIR (const juce::
             float duracionResultadoSeg = static_cast<float>(irResultado.getNumSamples()) / static_cast<float>(fsIR);
             float compensacionPorDuracion = std::sqrt (duracionResultadoSeg);
 
-            factorCompensacionIR = (0.12f / rmsTotalIR) * compensacionPorDuracion;
+            factorCompensacionIR = (0.10f / rmsTotalIR) * compensacionPorDuracion;
             factorCompensacionIR = juce::jlimit(0.1f, 8.0f, factorCompensacionIR);
         }
         else
@@ -313,10 +313,25 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         ultimoFactorDecay = valorDecay;
 
-        juce::AudioBuffer<float> irModificada = modificarDecayIR (irOriginal, valorDecay, fsIR);
+        hiloDeFondo.addJob ([this, valorDecay]()
+        {
+            juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
 
-        motorConvolucion.loadImpulseResponse(std::move (irModificada), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+            const juce::ScopedLock sl (cerrojoIR);
+            irModificadaEnFondo.makeCopyOf (irTemporal);
+            fsIRModificada = fsIR;
+            hayNuevaIRLista.store (true);
+        });
     }
+
+    if (hayNuevaIRLista.load())
+    {
+        const juce::ScopedLock sl (cerrojoIR);
+
+        if (irModificadaEnFondo.getNumSamples() > 0)
+            motorConvolucion.loadImpulseResponse(std::move (irModificadaEnFondo), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+    }
+    hayNuevaIRLista.store (false);
 
     float muestrasPreDelay = (valorPreDelay / 1000.0f) * static_cast<float>(spec.sampleRate);
     lineaPreDelay.setDelay (muestrasPreDelay);
@@ -351,8 +366,11 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     lineaPreDelay.process (contextoWet);
 
-    if (motorConvolucion.getCurrentIRSize() > 0)
-        motorConvolucion.process(contextoWet);
+    {
+        const juce::ScopedLock sl (cerrojoIR);
+        if (motorConvolucion.getCurrentIRSize() > 0)
+            motorConvolucion.process(contextoWet);
+    }
     
     filtrosCorte.process (contextoWet);
     
