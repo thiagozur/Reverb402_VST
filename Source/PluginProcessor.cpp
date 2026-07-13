@@ -100,7 +100,20 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
 juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
 {
-    juce::File carpetaIR ("E:/E/dev/VST/Reverb402/IR");
+    juce::File archivoBinario = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+
+    juce::File carpetaProyecto = archivoBinario.getParentDirectory()
+                                              .getParentDirectory()
+                                              .getParentDirectory()
+                                              .getParentDirectory()
+                                              .getParentDirectory();
+                                              
+    juce::File carpetaIR = carpetaProyecto.getChildFile ("IR");
+
+    if (! carpetaIR.isDirectory())
+    {
+        carpetaIR = archivoBinario.getParentDirectory().getChildFile ("IR");
+    }
 
     switch (indice)
     {
@@ -131,6 +144,23 @@ void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
 
         lector->read (irOriginal.getArrayOfWritePointers(), canalesArchivo, 0, muestrasArchivo);
 
+        if (muestrasArchivo > 0 && fsIR > 0.0)
+        {
+            float rmsTotalIR = irOriginal.getRMSLevel (0, 0, muestrasArchivo);
+            if (rmsTotalIR > 0.0001f)
+            {
+                float duracionSeg = static_cast<float>(muestrasArchivo) / static_cast<float>(fsIR);
+                float compensacionPorDuracion = std::sqrt (duracionSeg);
+
+                factorCompensacionIR = (0.12f / rmsTotalIR) * compensacionPorDuracion;
+                factorCompensacionIR = juce::jlimit (0.1f, 8.0f, factorCompensacionIR);
+            }
+            else
+                factorCompensacionIR = 1.0f;
+        }
+        else
+            factorCompensacionIR = 1.0f;
+
         juce::AudioBuffer<float> irTemporal;
         irTemporal.makeCopyOf (irOriginal);
 
@@ -147,11 +177,10 @@ juce::AudioBuffer<float> Reverb402AudioProcessor::modificarDecayIR (const juce::
 
     juce::AudioBuffer<float> irResultado;
 
-    if (factorDecay <= 1.0f)
-    {
-        if (factorDecay == 1.0f)
-            irResultado.makeCopyOf(irOriginal);
-        
+    if (factorDecay == 1.0f)
+        irResultado.makeCopyOf(irOriginal);
+    else if (factorDecay <1.0f)
+    { 
         irResultado.makeCopyOf(irOriginal);
 
         for (int muestra = 0; muestra < muestrasOriginales; ++muestra)
