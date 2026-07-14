@@ -617,7 +617,7 @@ void Reverb402AudioProcessor::actualizarListaPresets()
     for (auto& archivo : archivosXML)
     {
         std::unique_ptr<juce::XmlElement> xml (juce::XmlDocument::parse (archivo));
-        if (xml != nullptr && xml->hasTagName (listaParametros.state.getType()))
+        if (xml != nullptr && xml->hasTagName ("Reverb402Preset"))
         {
             Preset pUser;
 
@@ -643,7 +643,7 @@ void Reverb402AudioProcessor::guardarPresetRapido(const juce::String& nombrePres
     auto carpetaUser = obtenerCarpetaPresetsUsuario();
     auto archivoDestino = carpetaUser.getChildFile (nombrePreset).withFileExtension (".xml");
 
-    std::unique_ptr<juce::XmlElement> xml (new juce::XmlElement (listaParametros.state.getType()));
+    std::unique_ptr<juce::XmlElement> xml (new juce::XmlElement ("Reverb402Preset"));
 
     xml->setAttribute ("mix", paramMix->load());
     xml->setAttribute ("decay", paramDecay->load());
@@ -678,6 +678,16 @@ bool Reverb402AudioProcessor::esPresetDeUsuario (int index)
         return listaCompletaPresets[static_cast<size_t> (index)].esDeUsuario;
         
     return false;
+}
+
+int Reverb402AudioProcessor::obtenerIndicePresetPorNombre (const juce::String& nombre)
+{
+    for (int i = 0; i < static_cast<int>(listaCompletaPresets.size()); ++i)
+    {
+        if (listaCompletaPresets[i].nombre == nombre)
+            return i;
+    }
+    return 0;
 }
 
 juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
@@ -749,7 +759,7 @@ juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
                             if (texto.isNotEmpty())
                             {
                                 processor.guardarPresetRapido (texto);
-                                idxLocal = processor.getNumPrograms() - 1;
+                                idxLocal = processor.obtenerIndicePresetPorNombre(texto);
                                 processor.setCurrentProgram (idxLocal);
                                 lblNombre.setText (processor.getProgramName (idxLocal), juce::dontSendNotification);
                                 chequearSiEsBorrable();

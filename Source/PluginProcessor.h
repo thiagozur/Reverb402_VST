@@ -30,6 +30,7 @@ public:
     void guardarPresetRapido(const juce::String& nombrePreset);
     void eliminarPresetActual (int index);
     bool esPresetDeUsuario (int index);
+    int obtenerIndicePresetPorNombre (const juce::String& nombre);
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
