@@ -100,41 +100,49 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
 
-    lineaPreDelay.prepare(spec);
+    lineaPreDelay.prepare (spec);
     lineaPreDelay.setMaximumDelayInSamples (static_cast<int> (sampleRate));
 
-    filtrosCorte.prepare(spec);
-    *filtrosCorte.get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 20.0f);
-    *filtrosCorte.get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 20000.0f);
-
-    juce::AudioBuffer<float> bufferVacio; 
+    for (int canal = 0; canal < 2; ++canal)  
+    {
+        filtrosCorte[canal].prepare (spec);
+        *filtrosCorte[canal].get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 20.0f);
+        *filtrosCorte[canal].get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 20000.0f);
+    } 
     
-    motorConvolucion.loadImpulseResponse (std::move (bufferVacio), sampleRate, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::no);
-
     juce::dsp::ProcessSpec specConvolucion;
     specConvolucion.sampleRate = sampleRate;
     specConvolucion.numChannels = spec.numChannels;
     specConvolucion.maximumBlockSize = samplesPerBlock;
-    motorConvolucion.prepare(specConvolucion);
+
+    motorConvolucionHead.prepare (specConvolucion);
+    motorConvolucionTail.prepare (specConvolucion);
+    lineaCompensacionHead.prepare (specConvolucion);
+    lineaCompensacionDry.prepare (specConvolucion);
+
+    bufferTail.setSize (2, samplesPerBlock, false, true, true);
+    bufferWet.setSize (2, samplesPerBlock, false, true, true);
     
-    setLatencySamples(motorConvolucion.getLatency());
+    latenciaCompensacionMuestras = motorConvolucionTail.getLatency() - motorConvolucionHead.getLatency();
+    lineaCompensacionHead.setDelay (static_cast<float>(juce::jmax (0, latenciaCompensacionMuestras)));
+
+    setLatencySamples (motorConvolucionTail.getLatency());
+
+    lineaCompensacionDry.setDelay (static_cast<float>(getLatencySamples()));
+    bufferDryCompensado.setSize (2, samplesPerBlock, false, true, true);
 }
 
 juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
 {
-    juce::File archivoBinario = juce::File::getSpecialLocation (juce::File::currentExecutableFile);
+    auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
 
-    juce::File carpetaProyecto = archivoBinario.getParentDirectory()
-                                              .getParentDirectory()
-                                              .getParentDirectory()
-                                              .getParentDirectory()
-                                              .getParentDirectory();
-                                              
-    juce::File carpetaIR = carpetaProyecto.getChildFile ("IR");
+    juce::File carpetaIR = appData.getChildFile("UNTREF")
+                                  .getChildFile("Reverb402")
+                                  .getChildFile("IR");
 
     if (! carpetaIR.isDirectory())
     {
-        carpetaIR = archivoBinario.getParentDirectory().getChildFile ("IR");
+        carpetaIR.createDirectory();
     }
 
     switch (indice)
@@ -151,6 +159,42 @@ juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
     }
 }
 
+void Reverb402AudioProcessor::dividirIREnHeadYTail (const juce::AudioBuffer<float>& irCompleta, double fs, juce::AudioBuffer<float>& outHead, juce::AudioBuffer<float>& outTail)
+{
+    const int numCanales = irCompleta.getNumChannels();
+    const int totalMuestras = irCompleta.getNumSamples();
+
+    int muestrasHead = static_cast<int>((duracionHeadMs/1000.0) * fs);
+    muestrasHead = juce::jmin (muestrasHead, totalMuestras);
+    int muestrasTail = totalMuestras - muestrasHead;
+
+    outHead.setSize (numCanales, muestrasHead, false, true, true);
+    for (int canal = 0; canal < numCanales; ++canal)
+        outHead.copyFrom (canal, 0, irCompleta, canal, 0, muestrasHead);
+    
+    if (muestrasTail > 0)
+    {
+        outTail.setSize (numCanales, muestrasTail, false, true, true);
+        for (int canal = 0; canal < numCanales; ++canal)
+            outTail.copyFrom (canal, 0, irCompleta, canal, muestrasHead, muestrasTail);
+    }
+    else
+        outTail.setSize (numCanales, 0, false, true, true);
+}
+
+void Reverb402AudioProcessor::cargarIREnMotores (juce::AudioBuffer<float>&& head, juce::AudioBuffer<float>&& tail, double fs)
+{
+    motorConvolucionHead.loadImpulseResponse (std::move (head), fs, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
+    if (tail.getNumSamples() > 0)
+        motorConvolucionTail.loadImpulseResponse (std::move (tail), fs, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::no);
+    else
+    {
+        juce::AudioBuffer<float> irVacia;
+        motorConvolucionTail.loadImpulseResponse (std::move (irVacia), fs, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::no);
+    }
+}
+
 void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
 {
     std::unique_ptr<juce::AudioFormatReader> lector (empaquetadorFormatos.createReaderFor (archivoAudio));
@@ -161,32 +205,88 @@ void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
         const int canalesArchivo = static_cast<int>(lector->numChannels);
         const int muestrasArchivo = static_cast<int>(lector->lengthInSamples);
 
-        irOriginal.clear();
-        irOriginal.setSize (canalesArchivo, muestrasArchivo, false, true, true);
-
-        lector->read (irOriginal.getArrayOfWritePointers(), canalesArchivo, 0, muestrasArchivo);
+        juce::AudioBuffer<float> bufferTemporalRaw (canalesArchivo, muestrasArchivo);
+        lector->read (bufferTemporalRaw.getArrayOfWritePointers(), canalesArchivo, 0, muestrasArchivo);
 
         if (muestrasArchivo > 0 && fsIR > 0.0)
         {
-            float rmsTotalIR = irOriginal.getRMSLevel (0, 0, muestrasArchivo);
+            const float* datosCanalAnalisis = bufferTemporalRaw.getReadPointer (0);
+
+            int indPico = 0;
+            float valorMaxAbs = 0.0f;
+            for (int i = 0; i < muestrasArchivo; ++i)
+            {
+                float absVal = std::abs (datosCanalAnalisis[i]);
+                if (absVal > valorMaxAbs)
+                {
+                    valorMaxAbs = absVal;
+                    indPico = i;
+                }
+            }
+
+            int muestrasRecortadasAlInicio = muestrasArchivo - indPico;
+            if (muestrasRecortadasAlInicio > 0)
+            {
+                float umbral = 0.01f * valorMaxAbs;
+                int ultimoIndiceSobreUmbral = -1;
+                
+                for (int i = 0; i < muestrasRecortadasAlInicio; ++i)
+                {
+                    float absVal = std::abs (datosCanalAnalisis[indPico + i]);
+                    if (absVal > umbral)
+                        ultimoIndiceSobreUmbral = i;
+                }
+
+                int muestrasFinalesARecortar = muestrasRecortadasAlInicio;
+
+                if (ultimoIndiceSobreUmbral != -1)
+                {
+                    int margen = static_cast<int>(0.2 * fsIR);
+                    int corte = std::min (ultimoIndiceSobreUmbral + margen, muestrasRecortadasAlInicio);
+                    muestrasFinalesARecortar = corte;
+                }
+
+                irOriginal.clear();
+                irOriginal.setSize (canalesArchivo, muestrasFinalesARecortar, false, true, true);
+
+                for (int canal = 0; canal < canalesArchivo; ++canal)
+                {
+                    irOriginal.copyFrom (canal, 0, bufferTemporalRaw, canal, indPico, muestrasFinalesARecortar);
+                }
+            }
+            else
+                irOriginal.makeCopyOf (bufferTemporalRaw);
+
+            const int muestrasFinales = irOriginal.getNumSamples();
+            float rmsTotalIR = irOriginal.getRMSLevel (0, 0, muestrasFinales);
+
             if (rmsTotalIR > 0.0001f)
             {
-                float duracionSeg = static_cast<float>(muestrasArchivo) / static_cast<float>(fsIR);
+                float duracionSeg = static_cast<float>(muestrasFinales) / static_cast<float>(fsIR);
                 float compensacionPorDuracion = std::sqrt (duracionSeg);
 
                 factorCompensacionIR = (0.10f / rmsTotalIR) * compensacionPorDuracion;
                 factorCompensacionIR = juce::jlimit (0.1f, 8.0f, factorCompensacionIR);
             }
             else
+            {
                 factorCompensacionIR = 1.0f;
+            }
         }
         else
+        {
             factorCompensacionIR = 1.0f;
+            irOriginal.clear();
+        }
 
         juce::AudioBuffer<float> irTemporal;
-        irTemporal.makeCopyOf (irOriginal);
-
-        motorConvolucion.loadImpulseResponse(std::move (irTemporal), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+        if (irOriginal.getNumSamples() > 0)
+        {
+            irTemporal.makeCopyOf (irOriginal);
+            juce::AudioBuffer<float> irHead, irTail;
+            dividirIREnHeadYTail (irTemporal, fsIR, irHead, irTail);
+            cargarIREnMotores (std::move (irHead), std::move (irTail), fsIR);
+        }  
     }
 }
 
@@ -317,8 +417,12 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         {
             juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
 
+            juce::AudioBuffer<float> head, tail;
+            dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
+
             const juce::ScopedLock sl (cerrojoIR);
-            irModificadaEnFondo.makeCopyOf (irTemporal);
+            irHeadEnFondo.makeCopyOf (head);
+            irTailEnFondo.makeCopyOf (tail);
             fsIRModificada = fsIR;
             hayNuevaIRLista.store (true);
         });
@@ -328,31 +432,36 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         const juce::ScopedLock sl (cerrojoIR);
 
-        if (irModificadaEnFondo.getNumSamples() > 0)
-            motorConvolucion.loadImpulseResponse(std::move (irModificadaEnFondo), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+        if (irHeadEnFondo.getNumSamples() > 0)
+            motorConvolucionHead.loadImpulseResponse (std::move (irHeadEnFondo), fsIRModificada, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
+        if (irTailEnFondo.getNumSamples() > 0)
+            motorConvolucionTail.loadImpulseResponse (std::move (irTailEnFondo), fsIRModificada, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
     }
     hayNuevaIRLista.store (false);
 
     float muestrasPreDelay = (valorPreDelay / 1000.0f) * static_cast<float>(spec.sampleRate);
     lineaPreDelay.setDelay (muestrasPreDelay);
 
-    if (valorHPF <= 20.0f)
-        filtrosCorte.setBypassed<0> (true);
-    else
+    for (int canal = 0; canal < 2; ++canal)
     {
-        filtrosCorte.setBypassed<0> (false);
-        *filtrosCorte.get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (spec.sampleRate, valorHPF);
+        if (valorHPF <= 20.0f)
+        filtrosCorte[canal].setBypassed<0> (true);
+        else
+        {
+            filtrosCorte[canal].setBypassed<0> (false);
+            *filtrosCorte[canal].get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (spec.sampleRate, valorHPF);
+        }
+
+        if (valorLPF >= 20000.0f)
+            filtrosCorte[canal].setBypassed<1> (true);
+        else
+        {
+            filtrosCorte[canal].setBypassed<1> (false);
+            *filtrosCorte[canal].get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (spec.sampleRate, valorLPF);
+        }
     }
 
-    if (valorLPF >= 20000.0f)
-        filtrosCorte.setBypassed<1> (true);
-    else
-    {
-        filtrosCorte.setBypassed<1> (false);
-        *filtrosCorte.get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (spec.sampleRate, valorLPF);
-    }
-
-    juce::AudioBuffer<float> bufferWet;
     bufferWet.setSize (2, numMuestras, false, true, true);
 
     for (int canal = 0; canal < 2; ++canal)
@@ -366,14 +475,48 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     lineaPreDelay.process (contextoWet);
 
+    bufferTail.copyFrom (0, 0, bufferWet, 0, 0, numMuestras);
+    bufferTail.copyFrom (1, 0, bufferWet, 1, 0, numMuestras);
+
+    juce::dsp::AudioBlock<float> bloqueTail (bufferTail);
+    juce::dsp::ProcessContextReplacing<float> contextoTail (bloqueTail);
+
     {
         const juce::ScopedLock sl (cerrojoIR);
-        if (motorConvolucion.getCurrentIRSize() > 0)
-            motorConvolucion.process(contextoWet);
+
+        if (motorConvolucionHead.getCurrentIRSize() > 0)
+            motorConvolucionHead.process (contextoWet);
+
+        if (motorConvolucionTail.getCurrentIRSize() > 0)
+            motorConvolucionTail.process (contextoTail);
     }
+
+    lineaCompensacionHead.process (contextoWet);
+
+    if (motorConvolucionTail.getCurrentIRSize() > 0)
+    {
+        bufferWet.addFrom (0, 0, bufferTail, 0, 0, numMuestras);
+        bufferWet.addFrom (1, 0, bufferTail, 1, 0, numMuestras);
+    }   
     
-    filtrosCorte.process (contextoWet);
-    
+    for (int canal = 0; canal < 2; ++canal)
+    {
+        auto bloqueCanalUnico = bloqueWet.getSingleChannelBlock (canal);
+        juce::dsp::ProcessContextReplacing<float> contextoCanal (bloqueCanalUnico);
+        filtrosCorte[canal].process (contextoCanal);
+    }
+
+    bufferDryCompensado.setSize (2, numMuestras, false, true, true);
+    for (int canal = 0; canal < 2; ++canal)
+    {
+        int canalOrigen = (canal < totalNumInputChannels) ? canal : 0;
+        bufferDryCompensado.copyFrom (canal, 0, buffer, canalOrigen, 0, numMuestras);
+    }
+
+    juce::dsp::AudioBlock<float> bloqueDry (bufferDryCompensado);
+    juce::dsp::ProcessContextReplacing<float> contextoDry (bloqueDry);
+    lineaCompensacionDry.process (contextoDry);
+        
     float radianesConstantes = valorMix * (juce::MathConstants<float>::halfPi);
     float gananciaDry = std::cos (radianesConstantes);
     float gananciaWet = std::sin (radianesConstantes);
@@ -383,9 +526,8 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     for (int canal = 0; canal < totalNumOutputChannels; ++canal)
     {
         auto* datosSalida = buffer.getWritePointer (canal);
-        
-        int canalLecturaDry = (canal < totalNumInputChannels) ? canal : 0;
-        auto* datosDry = buffer.getReadPointer (canalLecturaDry);
+
+        auto* datosDry = bufferDryCompensado.getReadPointer (canal);
         
         auto* datosWet = bufferWet.getReadPointer (canal);
 
@@ -402,9 +544,12 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
 void Reverb402AudioProcessor::releaseResources()
 {
-    motorConvolucion.reset();
-    filtrosCorte.reset();
+    motorConvolucionHead.reset();
+    motorConvolucionTail.reset();
     lineaPreDelay.reset();
+
+    for (int canal = 0; canal < 2; ++canal)
+        filtrosCorte[canal].reset();
 }
 
 int Reverb402AudioProcessor::getNumPrograms()

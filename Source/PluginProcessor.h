@@ -41,7 +41,23 @@ private:
     juce::AudioBuffer<float> modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR);
     float factorCompensacionIR = 1.0f;
 
-    juce::dsp::Convolution motorConvolucion;
+    juce::dsp::Convolution motorConvolucionHead { juce::dsp::Convolution::Latency { 64 } };
+    juce::dsp::Convolution motorConvolucionTail { juce::dsp::Convolution::Latency { 4096 } };
+
+    juce::dsp::DelayLine<float> lineaCompensacionHead { 8192 };
+
+    juce::AudioBuffer<float> irHeadEnFondo, irTailEnFondo;
+    juce::AudioBuffer<float> bufferTail;
+
+    juce::AudioBuffer<float> bufferWet;
+
+    juce::dsp::DelayLine<float> lineaCompensacionDry { 16384 };
+    juce::AudioBuffer<float> bufferDryCompensado;
+
+    static constexpr double duracionHeadMs = 180.0;
+    int latenciaCompensacionMuestras = 0;
+    void dividirIREnHeadYTail (const juce::AudioBuffer<float>& irCompleta, double fs, juce::AudioBuffer<float>& outHead, juce::AudioBuffer<float>& outTail);
+    void cargarIREnMotores (juce::AudioBuffer<float>&& head, juce::AudioBuffer<float>&& tail, double fs);
 
     juce::AudioFormatManager empaquetadorFormatos;
     juce::AudioBuffer<float> irOriginal;
@@ -49,10 +65,12 @@ private:
 
     float ultimoFactorDecay = -1.0f;
 
-    juce::dsp::ProcessorChain<
+    using FiltroCorteChain = juce::dsp::ProcessorChain<
         juce::dsp::IIR::Filter<float>,
         juce::dsp::IIR::Filter<float>
-    > filtrosCorte;
+    >;
+
+    std::array<FiltroCorteChain, 2> filtrosCorte;
 
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> lineaPreDelay;
 
