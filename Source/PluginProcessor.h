@@ -2,6 +2,19 @@
 
 #include <JuceHeader.h>
 
+struct Preset
+{
+    juce::String nombre;
+    float mix;
+    float decay;
+    float preDelay;
+    float hpf;
+    float lpf;
+    int irSelect;
+    bool esDeUsuario;
+    juce::File archivoOrigen;
+};
+
 class Reverb402AudioProcessor : public juce::AudioProcessor
 {
 public:
@@ -33,6 +46,16 @@ public:
     int obtenerIndicePresetPorNombre (const juce::String& nombre);
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+    void obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino);
+    float obtenerMagnitudFiltros (double frecuencia);
+    int getCantidadPresets() const { return static_cast<int>(listaCompletaPresets.size()); }
+
+    std::vector<Preset> listaCompletaPresets;
+    const std::vector<Preset> presetsDeFabrica = {
+    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
+    { "Testfull", 1.0f, 5.0f, 150.0f, 20.0f, 20000.0f, 0, false, {}},
+    };
+    
 
 private:
     juce::dsp::ProcessSpec spec;
@@ -48,6 +71,7 @@ private:
     juce::dsp::DelayLine<float> lineaCompensacionHead { 8192 };
 
     juce::AudioBuffer<float> irHeadEnFondo, irTailEnFondo;
+    juce::AudioBuffer<float> irCompletaModificada;
     juce::AudioBuffer<float> bufferTail;
 
     juce::AudioBuffer<float> bufferWet;

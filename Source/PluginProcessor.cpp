@@ -1,26 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-struct Preset
-{
-    juce::String nombre;
-    float mix;
-    float decay;
-    float preDelay;
-    float hpf;
-    float lpf;
-    int irSelect;
-    bool esDeUsuario;
-    juce::File archivoOrigen;
-};
-
-std::vector<Preset> listaCompletaPresets;
-
-const std::vector<Preset> presetsDeFabrica = {
-    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
-    { "Testfull", 1.0f, 5.0f, 150.0f, 20.0f, 20000.0f, 0, false, {}},
-};
-
 Reverb402AudioProcessor::Reverb402AudioProcessor()
     : AudioProcessor (BusesProperties()
                     .withInput ("Input", juce::AudioChannelSet::stereo(), true)
@@ -408,12 +388,14 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             if (irOriginal.getNumSamples() > 0)
             {
                 juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
+
                 juce::AudioBuffer<float> head, tail;
                 dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
 
                 const juce::ScopedLock sl (cerrojoIR);
                 irHeadEnFondo.makeCopyOf (head);
                 irTailEnFondo.makeCopyOf (tail);
+                irCompletaModificada.makeCopyOf (irTemporal);
                 fsIRModificada = fsIR;
                 hayNuevaIRLista.store (true);
             }
@@ -537,6 +519,50 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         }
         gananciaTransicion = gananciaRampa;
     }
+}
+
+void Reverb402AudioProcessor::obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino)
+{
+    const juce::ScopedLock sl (cerrojoIR);
+
+    if (irCompletaModificada.getNumSamples() > 0)
+    {
+        bufferDestino.setSize(irCompletaModificada.getNumChannels(), irCompletaModificada.getNumSamples(), false, true, true);
+        for (int canal = 0; canal < irCompletaModificada.getNumChannels(); ++canal)
+            bufferDestino.copyFrom (canal, 0, irCompletaModificada.getReadPointer (canal), irCompletaModificada.getNumSamples());
+    }
+    else
+    {
+        bufferDestino.setSize (1, 1);
+        bufferDestino.clear();
+    }
+}
+
+float Reverb402AudioProcessor::obtenerMagnitudFiltros (double frecuencia)
+{
+    float magnitudTotal = 1.0f;
+    double sampleRate = spec.sampleRate;
+    
+    if (sampleRate <= 0.0)
+        return magnitudTotal;
+    
+    auto& cadenaCanalCero = filtrosCorte[0];
+
+    if (! cadenaCanalCero.isBypassed<0>())
+    {
+        auto coefsHPF = cadenaCanalCero.get<0>().coefficients;
+        if (coefsHPF != nullptr)
+            magnitudTotal *= coefsHPF->getMagnitudeForFrequency (frecuencia, sampleRate);
+    }
+
+    if (! cadenaCanalCero.isBypassed<1>())
+    {
+        auto coefsLPF = cadenaCanalCero.get<1>().coefficients;
+        if (coefsLPF != nullptr)
+            magnitudTotal *= coefsLPF->getMagnitudeForFrequency (frecuencia, sampleRate);
+    }
+
+    return magnitudTotal;
 }
 
 void Reverb402AudioProcessor::releaseResources()
