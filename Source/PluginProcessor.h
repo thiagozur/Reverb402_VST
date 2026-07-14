@@ -36,7 +36,7 @@ public:
 private:
     juce::dsp::ProcessSpec spec;
 
-    void cargarArchivoIR (const juce::File& archivoAudio);
+    juce::AudioBuffer<float> cargarArchivoIRSeguro (const juce::File& archivoAudio, double& fsSalida, float& compensacionSalida);
 
     juce::AudioBuffer<float> modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR);
     float factorCompensacionIR = 1.0f;
@@ -105,6 +105,11 @@ private:
     juce::ThreadPool hiloDeFondo { 1 };
     juce::CriticalSection cerrojoIR;
     std::atomic<bool> hayNuevaIRLista { false };
+
+    std::atomic<bool> debeCargarNuevoArchivo { false };
+    float gananciaTransicion = 1.0f;
+    bool enTransicion = false;
+
     juce::AudioBuffer<float> irModificadaEnFondo;
     double fsIRModificada = 44100.0;
 

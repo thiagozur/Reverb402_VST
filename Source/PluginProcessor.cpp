@@ -195,20 +195,21 @@ void Reverb402AudioProcessor::cargarIREnMotores (juce::AudioBuffer<float>&& head
     }
 }
 
-void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
+juce::AudioBuffer<float> Reverb402AudioProcessor::cargarArchivoIRSeguro (const juce::File& archivoAudio, double& fsSalida, float& compensacionSalida)
 {
+    juce::AudioBuffer<float> irResultado;
     std::unique_ptr<juce::AudioFormatReader> lector (empaquetadorFormatos.createReaderFor (archivoAudio));
 
     if (lector != nullptr)
     {
-        fsIR = lector->sampleRate;
+        fsSalida = lector->sampleRate;
         const int canalesArchivo = static_cast<int>(lector->numChannels);
         const int muestrasArchivo = static_cast<int>(lector->lengthInSamples);
 
         juce::AudioBuffer<float> bufferTemporalRaw (canalesArchivo, muestrasArchivo);
         lector->read (bufferTemporalRaw.getArrayOfWritePointers(), canalesArchivo, 0, muestrasArchivo);
 
-        if (muestrasArchivo > 0 && fsIR > 0.0)
+        if (muestrasArchivo > 0 && fsSalida > 0.0)
         {
             const float* datosCanalAnalisis = bufferTemporalRaw.getReadPointer (0);
 
@@ -241,53 +242,35 @@ void Reverb402AudioProcessor::cargarArchivoIR (const juce::File& archivoAudio)
 
                 if (ultimoIndiceSobreUmbral != -1)
                 {
-                    int margen = static_cast<int>(0.2 * fsIR);
+                    int margen = static_cast<int>(0.2 * fsSalida);
                     int corte = std::min (ultimoIndiceSobreUmbral + margen, muestrasRecortadasAlInicio);
                     muestrasFinalesARecortar = corte;
                 }
 
-                irOriginal.clear();
-                irOriginal.setSize (canalesArchivo, muestrasFinalesARecortar, false, true, true);
+                irResultado.setSize (canalesArchivo, muestrasFinalesARecortar, false, true, true);
 
                 for (int canal = 0; canal < canalesArchivo; ++canal)
-                {
-                    irOriginal.copyFrom (canal, 0, bufferTemporalRaw, canal, indPico, muestrasFinalesARecortar);
-                }
+                    irResultado.copyFrom (canal, 0, bufferTemporalRaw, canal, indPico, muestrasFinalesARecortar);
             }
             else
-                irOriginal.makeCopyOf (bufferTemporalRaw);
+                irResultado.makeCopyOf (bufferTemporalRaw);
 
-            const int muestrasFinales = irOriginal.getNumSamples();
-            float rmsTotalIR = irOriginal.getRMSLevel (0, 0, muestrasFinales);
+            const int muestrasFinales = irResultado.getNumSamples();
+            float rmsTotalIR = irResultado.getRMSLevel (0, 0, muestrasFinales);
 
             if (rmsTotalIR > 0.0001f)
             {
-                float duracionSeg = static_cast<float>(muestrasFinales) / static_cast<float>(fsIR);
+                float duracionSeg = static_cast<float>(muestrasFinales) / static_cast<float>(fsSalida);
                 float compensacionPorDuracion = std::sqrt (duracionSeg);
 
-                factorCompensacionIR = (0.10f / rmsTotalIR) * compensacionPorDuracion;
-                factorCompensacionIR = juce::jlimit (0.1f, 8.0f, factorCompensacionIR);
+                compensacionSalida = (0.10f / rmsTotalIR) * compensacionPorDuracion;
+                compensacionSalida = juce::jlimit (0.1f, 8.0f, compensacionSalida);
             }
             else
-            {
-                factorCompensacionIR = 1.0f;
-            }
+                compensacionSalida = 1.0f;
         }
-        else
-        {
-            factorCompensacionIR = 1.0f;
-            irOriginal.clear();
-        }
-
-        juce::AudioBuffer<float> irTemporal;
-        if (irOriginal.getNumSamples() > 0)
-        {
-            irTemporal.makeCopyOf (irOriginal);
-            juce::AudioBuffer<float> irHead, irTail;
-            dividirIREnHeadYTail (irTemporal, fsIR, irHead, irTail);
-            cargarIREnMotores (std::move (irHead), std::move (irTail), fsIR);
-        }  
     }
+    return irResultado;
 }
 
 juce::AudioBuffer<float> Reverb402AudioProcessor::modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR)
@@ -400,35 +383,44 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (irElegida != ultimaIrCargada)
     {
         ultimaIrCargada = irElegida;
-        juce::File archivoElegido = obtenerArchivoIRFijo (irElegida);
-
-        if (archivoElegido.existsAsFile())
-        {
-            cargarArchivoIR (archivoElegido);
-            ultimoFactorDecay = -1.0f;
-        }
+        enTransicion = true;
+        debeCargarNuevoArchivo.store (true);
+        ultimoFactorDecay = -1.0f;
     }
 
-    if (valorDecay != ultimoFactorDecay && irOriginal.getNumSamples() > 0)
+    if (debeCargarNuevoArchivo.load() || (valorDecay != ultimoFactorDecay && irOriginal.getNumSamples() > 0))
     {
+        bool cargarNuevo = debeCargarNuevoArchivo.exchange (false);
         ultimoFactorDecay = valorDecay;
+        enTransicion = true;
 
-        hiloDeFondo.addJob ([this, valorDecay]()
+        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo]()
         {
-            juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
+            if (cargarNuevo)
+            {
+                juce::File archivoElegido = obtenerArchivoIRFijo (irElegida);
+                if (archivoElegido.existsAsFile())
+                {
+                    irOriginal = cargarArchivoIRSeguro (archivoElegido, fsIR, factorCompensacionIR);
+                }
+            }
 
-            juce::AudioBuffer<float> head, tail;
-            dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
+            if (irOriginal.getNumSamples() > 0)
+            {
+                juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
+                juce::AudioBuffer<float> head, tail;
+                dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
 
-            const juce::ScopedLock sl (cerrojoIR);
-            irHeadEnFondo.makeCopyOf (head);
-            irTailEnFondo.makeCopyOf (tail);
-            fsIRModificada = fsIR;
-            hayNuevaIRLista.store (true);
+                const juce::ScopedLock sl (cerrojoIR);
+                irHeadEnFondo.makeCopyOf (head);
+                irTailEnFondo.makeCopyOf (tail);
+                fsIRModificada = fsIR;
+                hayNuevaIRLista.store (true);
+            }
         });
     }
 
-    if (hayNuevaIRLista.load())
+    if (hayNuevaIRLista.load() && gananciaTransicion < 0.01f)
     {
         const juce::ScopedLock sl (cerrojoIR);
 
@@ -437,8 +429,12 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
         if (irTailEnFondo.getNumSamples() > 0)
             motorConvolucionTail.loadImpulseResponse (std::move (irTailEnFondo), fsIRModificada, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+        
+        hayNuevaIRLista.store (false);
+        enTransicion = false;
     }
-    hayNuevaIRLista.store (false);
+    
+    float gananciaObjetivo = enTransicion ? 0.0f : 1.0f;
 
     float muestrasPreDelay = (valorPreDelay / 1000.0f) * static_cast<float>(spec.sampleRate);
     lineaPreDelay.setDelay (muestrasPreDelay);
@@ -520,25 +516,26 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     float radianesConstantes = valorMix * (juce::MathConstants<float>::halfPi);
     float gananciaDry = std::cos (radianesConstantes);
     float gananciaWet = std::sin (radianesConstantes);
-
     float compensacionInteligente = factorCompensacionIR; 
+    float gananciaRampa = gananciaTransicion;
 
-    for (int canal = 0; canal < totalNumOutputChannels; ++canal)
+    for (int muestra = 0; muestra < numMuestras; ++muestra)
     {
-        auto* datosSalida = buffer.getWritePointer (canal);
+        gananciaRampa += (gananciaObjetivo - gananciaRampa) * 0.02f; 
 
-        auto* datosDry = bufferDryCompensado.getReadPointer (canal);
-        
-        auto* datosWet = bufferWet.getReadPointer (canal);
-
-        for (int muestra = 0; muestra < numMuestras; ++muestra)
+        for (int canal = 0; canal < totalNumOutputChannels; ++canal)
         {
-            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente;
+            auto* datosSalida = buffer.getWritePointer (canal);
+            auto* datosDry = bufferDryCompensado.getReadPointer (canal);
+            auto* datosWet = bufferWet.getReadPointer (canal);
+
+            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente * gananciaRampa;
             
             float senalFinal = (datosDry[muestra] * gananciaDry) + (senalWetNormalizada * gananciaWet);
             
             datosSalida[muestra] = juce::jlimit (-1.0f, 1.0f, senalFinal);
         }
+        gananciaTransicion = gananciaRampa;
     }
 }
 
