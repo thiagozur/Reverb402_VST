@@ -6,26 +6,21 @@
 class IRWaveformPlot : public juce::Component
 {
 public:
-    IRWaveformPlot() {}
-
-    void paint (juce::Graphics& g) override
+    IRWaveformPlot (Reverb402AudioProcessor& p) : processor (p)
     {
-        g.fillAll (juce::Colour (0xFF1A1A1A));
-
-        g.setColour (juce::Colours::white.withAlpha (0.05f));
-        for (int i = 1; i < 4; ++i)
-        {
-            float y = getHeight() * (i / 4.0f);
-            g.drawHorizontalLine (static_cast<int>(y), 0.0f, static_cast<float>(getWidth()));
-
-            float x = getWidth() * (i / 4.0f);
-            g.drawVerticalLine (static_cast<int>(x), 0.0f, static_cast<float>(getHeight()));
-        }
-
-        g.setColour (juce::Colours::cyan);
-        g.setFont (14.0f);
-        g.drawText (juce::String (juce::CharPointer_UTF8 (u8"Aquí se dibujará la forma de onda (Tiempo)")), getLocalBounds(), juce::Justification::centred);
+        actualizarOnda();
     }
+
+    void paint (juce::Graphics& g) override;
+    
+    void actualizarOnda();
+
+private:
+    Reverb402AudioProcessor& processor;
+    juce::AudioBuffer<float> bufferLocal;
+    juce::Path caminoOnda;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IRWaveformPlot)
 };
 
 class IRSpectrogramPlot : public juce::Component {
@@ -45,7 +40,7 @@ public:
 class IRVisualizerContainer : public juce::Component
 {
 public:
-    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p)
+    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p)
     {
         btnWaveform.setButtonText ("Forma de Onda");
         btnWaveform.setRadioGroupId (1234);
@@ -62,6 +57,8 @@ public:
 
         addAndMakeVisible (waveformPlot);
         addChildComponent (spectrogramPlot);
+        
+        actualizarGraficos();
     }
 
     void paint (juce::Graphics& g) override
@@ -79,6 +76,11 @@ public:
         auto areaGrafico = bounds.reduced (4);
         waveformPlot.setBounds (areaGrafico);
         spectrogramPlot.setBounds (areaGrafico);
+    }
+
+    void actualizarGraficos()
+    {
+        waveformPlot.actualizarOnda();
     }
 
 private:

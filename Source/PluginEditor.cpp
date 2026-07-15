@@ -1,7 +1,7 @@
 ﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (&p), audioProcessor (p)
+Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (&p), audioProcessor (p), visualizadorIR (p)
 {
     addAndMakeVisible (visualizadorIR);
     addAndMakeVisible (panelPresets);
@@ -113,9 +113,14 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
     attachmentIR = std::make_unique<ComboBoxAttachment> (audioProcessor.obtenerAPVTS(), "ir_select", comboIR);
 
     setSize (800, 600);
+
+    audioProcessor.addChangeListener (this);
 }
 
-Reverb402AudioProcessorEditor::~Reverb402AudioProcessorEditor() {}
+Reverb402AudioProcessorEditor::~Reverb402AudioProcessorEditor()
+{
+    audioProcessor.removeChangeListener (this);
+}
 
 void Reverb402AudioProcessorEditor::paint (juce::Graphics& g)
 {
@@ -127,22 +132,29 @@ void Reverb402AudioProcessorEditor::resized ()
     auto bounds = getLocalBounds();
 
     auto areaPresetsCompleta = bounds.removeFromTop (60);
-    
-    panelPresets.setBounds (areaPresetsCompleta.reduced (10, 5));
 
-    int yWidgets = areaPresetsCompleta.getY() + 22;
-    int altoWidgets = 24;
+    auto areaFondo = areaPresetsCompleta.reduced (10, 5);
+    panelPresets.setBounds (areaFondo);
 
-    btnAnterior.setBounds  (20,  yWidgets, 40, altoWidgets);
-    btnSiguiente.setBounds (65,  yWidgets, 40, altoWidgets);
+    auto filaWidgets = areaFondo.reduced (10, 0);
 
-    int xDerecha = areaPresetsCompleta.getWidth() - 20;
-    btnGuardar.setBounds   (xDerecha - 90, yWidgets, 90, altoWidgets);
-    btnBorrar.setBounds    (xDerecha - 90 - 10 - 70, yWidgets, 70, altoWidgets);
+    int yCentradoReal = areaFondo.getCentreY() - 12 + 4; 
 
-    int xLabel = 115;
-    int anchoLabel = (xDerecha - 90 - 10 - 70 - 10) - xLabel;
-    lblNombrePreset.setBounds (xLabel, yWidgets, anchoLabel, altoWidgets);
+    filaWidgets = filaWidgets.withY (yCentradoReal).withHeight (24);
+
+    btnAnterior.setBounds(filaWidgets.removeFromLeft (40));
+    filaWidgets.removeFromLeft (5);
+
+    btnSiguiente.setBounds(filaWidgets.removeFromLeft (40));
+    filaWidgets.removeFromLeft (10);
+
+    btnGuardar.setBounds(filaWidgets.removeFromRight (90));
+    filaWidgets.removeFromRight (10);
+
+    btnBorrar.setBounds(filaWidgets.removeFromRight (70));
+    filaWidgets.removeFromRight (10);
+
+    lblNombrePreset.setBounds (filaWidgets);
 
     visualizadorIR.setBounds (bounds.removeFromTop (250).reduced (10, 5));
 
@@ -169,10 +181,20 @@ void Reverb402AudioProcessorEditor::resized ()
         k.second->setBounds (areaIndividual.removeFromTop (20));
         k.first->setBounds (areaIndividual);
     }
+
+    visualizadorIR.actualizarGraficos();
 }
 
 void Reverb402AudioProcessorEditor::actualizarEstadoBotonBorrar()
 {
     int idx = audioProcessor.getCurrentProgram();
     btnBorrar.setEnabled (audioProcessor.esPresetDeUsuario (idx));
+}
+
+void Reverb402AudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
+{
+    if (source == &audioProcessor)
+    {
+        visualizadorIR.actualizarGraficos();
+    }
 }

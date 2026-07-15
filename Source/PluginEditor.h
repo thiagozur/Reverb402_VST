@@ -4,7 +4,7 @@
 #include "PluginProcessor.h"
 #include "IRVisualizer.h"
 
-class Reverb402AudioProcessorEditor : public juce::AudioProcessorEditor
+class Reverb402AudioProcessorEditor : public juce::AudioProcessorEditor, public juce::ChangeListener
 {
 public:
     Reverb402AudioProcessorEditor (Reverb402AudioProcessor&);
@@ -13,10 +13,12 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    void changeListenerCallback (juce::ChangeBroadcaster* source) override;
+
 private:
     Reverb402AudioProcessor& audioProcessor;
 
-    IRVisualizerContainer visualizadorIR { audioProcessor };
+    IRVisualizerContainer visualizadorIR;
 
     juce::GroupComponent panelPresets { "panelPresets", "PRESETS" };
     juce::TextButton btnAnterior { "<-" };

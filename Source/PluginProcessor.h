@@ -15,7 +15,7 @@ struct Preset
     juce::File archivoOrigen;
 };
 
-class Reverb402AudioProcessor : public juce::AudioProcessor
+class Reverb402AudioProcessor : public juce::AudioProcessor, public juce::ChangeBroadcaster
 {
 public:
     Reverb402AudioProcessor();
