@@ -20,12 +20,11 @@ private:
 
     IRVisualizerContainer visualizadorIR;
 
-    juce::GroupComponent panelPresets { "panelPresets", "PRESETS" };
-    juce::TextButton btnAnterior { "<-" };
-    juce::TextButton btnSiguiente { "->" };
-    juce::TextButton btnGuardar { "Guardar" };
-    juce::TextButton btnBorrar { "Borrar" };
-    juce::Label lblNombrePreset;
+    juce::TextButton btnPresetAnterior { "<" };
+    juce::TextButton btnPresetSiguiente { ">" };
+    juce::ComboBox comboPresets;
+
+    std::unique_ptr<juce::AlertWindow> cwRelease;
 
     juce::Slider sliderPreDelay;
     juce::Slider sliderDecay;
@@ -51,7 +50,10 @@ private:
     std::unique_ptr<SliderAttachment> attachmentMix;
     std::unique_ptr<ComboBoxAttachment> attachmentIR;
 
-    void actualizarEstadoBotonBorrar();
+    void actualizarMenuPresets();
+    void cambiarPresetRelativo (int direccion);
+    void mostrarDialogoGuardarPreset();
+    void ejecutarBorradoPreset();
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Reverb402AudioProcessorEditor)
 };

@@ -4,81 +4,32 @@
 Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (&p), audioProcessor (p), visualizadorIR (p)
 {
     addAndMakeVisible (visualizadorIR);
-    addAndMakeVisible (panelPresets);
 
-    addAndMakeVisible (btnAnterior);
-    btnAnterior.onClick = [this] {
-        int idx = audioProcessor.getCurrentProgram();
-        int total = audioProcessor.getNumPrograms();
-        if (total > 0)
+    addAndMakeVisible (btnPresetAnterior);
+    btnPresetAnterior.onClick = [this] { cambiarPresetRelativo (-1); };
+
+    addAndMakeVisible (btnPresetSiguiente);
+    btnPresetSiguiente.onClick = [this] { cambiarPresetRelativo (1); };
+
+    addAndMakeVisible (comboPresets);
+    actualizarMenuPresets();
+
+    comboPresets.onChange = [this] {
+        int idSeleccionado = comboPresets.getSelectedId();
+
+        if (idSeleccionado == 1000)
+            mostrarDialogoGuardarPreset();
+
+        else if (idSeleccionado == 1001)
+            ejecutarBorradoPreset();
+
+        else if (idSeleccionado > 0)
         {
-            idx = (idx - 1 + total) % total;
-            audioProcessor.setCurrentProgram (idx);
-            lblNombrePreset.setText (audioProcessor.getProgramName (idx), juce::dontSendNotification);
-            actualizarEstadoBotonBorrar();
+            int indexPreset = idSeleccionado - 1;
+            audioProcessor.setCurrentProgram (indexPreset);
+            actualizarMenuPresets();
         }
     };
-
-    addAndMakeVisible (btnSiguiente);
-    btnSiguiente.onClick = [this] {
-        int idx = audioProcessor.getCurrentProgram();
-        int total = audioProcessor.getNumPrograms();
-        if (total > 0)
-        {
-            idx = (idx + 1) % total;
-            audioProcessor.setCurrentProgram (idx);
-            lblNombrePreset.setText (audioProcessor.getProgramName (idx), juce::dontSendNotification);
-            actualizarEstadoBotonBorrar();
-        }
-    };
-
-    addAndMakeVisible (btnGuardar);
-    btnGuardar.onClick = [this] {
-        auto* alertWindow = new juce::AlertWindow ("Guardar Preset", "Introduzca un nombre:", juce::MessageBoxIconType::NoIcon, this);
-        alertWindow->addTextEditor ("nombrePreset", "Preset Usuario", "");
-        alertWindow->addButton ("Guardar", 1);
-        alertWindow->addButton ("Cancelar", 0);
-        alertWindow->enterModalState (true, juce::ModalCallbackFunction::create ([this, alertWindow] (int resultado) {
-            if (resultado == 1)
-            {
-                if (auto* editorTexto = alertWindow->getTextEditor ("nombrePreset"))
-                {
-                    juce::String texto = editorTexto->getText();
-                    if (texto.isNotEmpty())
-                    {
-                        audioProcessor.guardarPresetRapido (texto);
-                        int nuevoIdx = audioProcessor.obtenerIndicePresetPorNombre (texto);
-                        audioProcessor.setCurrentProgram (nuevoIdx);
-                        lblNombrePreset.setText (audioProcessor.getProgramName (nuevoIdx), juce::dontSendNotification);
-                        actualizarEstadoBotonBorrar();
-                    }
-                }
-            }
-            delete alertWindow;
-        }), true);
-    };
-
-    btnBorrar.setColour (juce::TextButton::buttonColourId, juce::Colours::darkred);
-    addAndMakeVisible (btnBorrar);
-    btnBorrar.onClick = [this] {
-        int idx = audioProcessor.getCurrentProgram();
-        juce::AlertWindow::showOkCancelBox (juce::MessageBoxIconType::WarningIcon, "¿Borrar?", "¿Estás seguro?", "Sí", "Cancelar", this,
-            juce::ModalCallbackFunction::create ([this, idx] (int resultado) {
-                if (resultado == 1) {
-                    audioProcessor.eliminarPresetActual (idx);
-                    audioProcessor.setCurrentProgram (0);
-                    lblNombrePreset.setText (audioProcessor.getProgramName (0), juce::dontSendNotification);
-                    actualizarEstadoBotonBorrar();
-                }
-            }));
-    };
-
-    lblNombrePreset.setJustificationType (juce::Justification::centred);
-    lblNombrePreset.setColour (juce::Label::backgroundColourId, juce::Colours::black.withAlpha (0.4f));
-    addAndMakeVisible (lblNombrePreset);
-
-    lblNombrePreset.setText (audioProcessor.getProgramName (audioProcessor.getCurrentProgram()), juce::dontSendNotification);
-    actualizarEstadoBotonBorrar();
 
     auto configurarKnob = [this] (juce::Slider& slider, juce::Label& label, const juce::String& sufijo) {
         slider.setSliderStyle (juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag);
@@ -135,30 +86,17 @@ void Reverb402AudioProcessorEditor::resized ()
 {
     auto bounds = getLocalBounds();
 
-    auto areaPresetsCompleta = bounds.removeFromTop (60);
+    auto areaPresets = bounds.removeFromTop (45).reduced (10, 8);
 
-    auto areaFondo = areaPresetsCompleta.reduced (10, 5);
-    panelPresets.setBounds (areaFondo);
+    int anchoFlecha = 30;
 
-    auto filaWidgets = areaFondo.reduced (10, 0);
+    btnPresetAnterior.setBounds (areaPresets.removeFromLeft (anchoFlecha));
+    areaPresets.removeFromLeft (4);
 
-    int yCentradoReal = areaFondo.getCentreY() - 12 + 4; 
+    btnPresetSiguiente.setBounds (areaPresets.removeFromRight (anchoFlecha));
+    areaPresets.removeFromRight (4);
 
-    filaWidgets = filaWidgets.withY (yCentradoReal).withHeight (24);
-
-    btnAnterior.setBounds(filaWidgets.removeFromLeft (40));
-    filaWidgets.removeFromLeft (5);
-
-    btnSiguiente.setBounds(filaWidgets.removeFromLeft (40));
-    filaWidgets.removeFromLeft (10);
-
-    btnGuardar.setBounds(filaWidgets.removeFromRight (90));
-    filaWidgets.removeFromRight (10);
-
-    btnBorrar.setBounds(filaWidgets.removeFromRight (70));
-    filaWidgets.removeFromRight (10);
-
-    lblNombrePreset.setBounds (filaWidgets);
+    comboPresets.setBounds (areaPresets);
 
     visualizadorIR.setBounds (bounds.removeFromTop (250).reduced (10, 5));
 
@@ -189,10 +127,105 @@ void Reverb402AudioProcessorEditor::resized ()
     visualizadorIR.actualizarGraficos();
 }
 
-void Reverb402AudioProcessorEditor::actualizarEstadoBotonBorrar()
+void Reverb402AudioProcessorEditor::actualizarMenuPresets()
 {
-    int idx = audioProcessor.getCurrentProgram();
-    btnBorrar.setEnabled (audioProcessor.esPresetDeUsuario (idx));
+    comboPresets.clear (juce::dontSendNotification);
+
+    int totalPresets = audioProcessor.getNumPrograms();
+    int presetActual = audioProcessor.getCurrentProgram();
+
+    for (int i = 0; i < totalPresets; ++i)
+        comboPresets.addItem (audioProcessor.getProgramName (i), i + 1);
+
+    comboPresets.addSeparator();
+
+    comboPresets.addItem ("+ Guardar Preset", 1000);
+    
+    if (audioProcessor.esPresetDeUsuario (presetActual))
+        comboPresets.addItem ("- Borrar Preset Actual", 1001);
+
+    comboPresets.setSelectedId (presetActual + 1, juce::dontSendNotification);
+}
+
+void Reverb402AudioProcessorEditor::cambiarPresetRelativo (int direccion)
+{
+    int total = audioProcessor.getNumPrograms();
+
+    if (total <= 0)
+        return;
+    
+    int actual = audioProcessor.getCurrentProgram();
+    int nuevoIdx = (actual + direccion + total) % total;
+
+    audioProcessor.setCurrentProgram (nuevoIdx);
+    actualizarMenuPresets();
+}
+
+void Reverb402AudioProcessorEditor::mostrarDialogoGuardarPreset()
+{
+    auto cuadroTexto = std::make_unique<juce::AlertWindow> ("Guardar Preset", "Introducir nombre:", juce::MessageBoxIconType::NoIcon, this);
+    cuadroTexto->addTextEditor ("nombrePreset", "", "");
+    cuadroTexto->addButton ("Guardar", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    cuadroTexto->addButton ("Cancelar", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+
+    cwRelease = std::move (cuadroTexto);
+
+    cwRelease->enterModalState (true, juce::ModalCallbackFunction::create ([this, cw = cuadroTexto.get()] (int resultado)
+    {
+        auto cw = std::move (cwRelease);
+
+        if (cw != nullptr && resultado == 1)
+        {
+            if (auto* editorTexto = cw->getTextEditor ("nombrePreset"))
+            {
+                juce::String nombre = editorTexto->getText().trim();
+                
+                if (nombre.isNotEmpty())
+                {
+                    audioProcessor.guardarPresetRapido (nombre);
+                    audioProcessor.actualizarListaPresets();
+                    int nuevoIdx = audioProcessor.obtenerIndicePresetPorNombre (nombre);
+                    audioProcessor.setCurrentProgram (nuevoIdx);
+                    
+                    actualizarMenuPresets();
+                }
+            }
+        }
+        else
+            actualizarMenuPresets();
+    }));
+}
+
+void Reverb402AudioProcessorEditor::ejecutarBorradoPreset()
+{
+    int presetActual = audioProcessor.getCurrentProgram();
+    if (audioProcessor.esPresetDeUsuario (presetActual))
+    {  
+        juce::String msg1 = "¿Estás seguro de que deseas eliminar ";
+        juce::String nombrePresetBorrado = audioProcessor.getProgramName(presetActual);
+        juce::String msg2 = " permamentemente?";
+        juce::String msg = msg1 + nombrePresetBorrado + msg2;
+
+        juce::AlertWindow::showOkCancelBox (
+            juce::MessageBoxIconType::WarningIcon,
+            "¿Borrar preset?",
+            msg,
+            "Sí, borrar",
+            "Cancelar",
+            this,
+            juce::ModalCallbackFunction::create ([this, presetActual] (int resultado) 
+            {
+                if (resultado == 1) 
+                {   
+                    cambiarPresetRelativo (-1);
+                    audioProcessor.eliminarPresetActual (presetActual);
+                    actualizarMenuPresets();
+                }
+                else
+                    actualizarMenuPresets();
+            })
+        );
+    }
 }
 
 void Reverb402AudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
