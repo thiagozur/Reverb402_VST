@@ -48,6 +48,7 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     void obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino);
     float obtenerMagnitudFiltros (double frecuencia);
+    double obtenerSampleRate() const { return getSampleRate() > 0.0 ? getSampleRate() : 44100.0; }
     juce::StringArray obtenerNombresIR() const
     {
         return {

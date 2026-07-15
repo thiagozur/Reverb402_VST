@@ -112,6 +112,10 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
     attachmentMix = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "mix", sliderMix);
     attachmentIR = std::make_unique<ComboBoxAttachment> (audioProcessor.obtenerAPVTS(), "ir_select", comboIR);
 
+    sliderHPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    sliderLPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    sliderDecay.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+
     setSize (800, 600);
 
     audioProcessor.addChangeListener (this);

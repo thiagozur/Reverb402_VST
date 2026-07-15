@@ -25,22 +25,33 @@ private:
 
 class IRSpectrogramPlot : public juce::Component {
 public:
-    IRSpectrogramPlot() {}
+    IRSpectrogramPlot(Reverb402AudioProcessor& p);
+    ~IRSpectrogramPlot() override;
 
-    void paint (juce::Graphics& g) override
-    {
-        g.fillAll (juce::Colour (0xFF151515));
+    void paint (juce::Graphics& g) override;
+    void resized() override;
 
-        g.setColour (juce::Colours::orange);
-        g.setFont (14.0f);
-        g.drawText (juce::String (juce::CharPointer_UTF8 (u8"Aquí se dibujará el Espectrograma (Frecuencia vs Tiempo)")), getLocalBounds(), juce::Justification::centred);
-    }
+    void actualizarEspectrograma();
+
+private:
+    Reverb402AudioProcessor& processor;
+    juce::AudioBuffer<float> bufferLocal;
+
+    static constexpr int fftOrder = 10;
+    static constexpr int fftSize = 1 << fftOrder;
+
+    std::unique_ptr<juce::dsp::FFT> descriptorFFT;
+    std::unique_ptr<juce::dsp::WindowingFunction<float>> ventanaHann;
+
+    juce::Image imagenEspectrograma;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IRSpectrogramPlot)
 };
 
 class IRVisualizerContainer : public juce::Component
 {
 public:
-    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p)
+    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p), spectrogramPlot (p)
     {
         btnWaveform.setButtonText ("Forma de Onda");
         btnWaveform.setRadioGroupId (1234);
@@ -81,6 +92,7 @@ public:
     void actualizarGraficos()
     {
         waveformPlot.actualizarOnda();
+        spectrogramPlot.actualizarEspectrograma();
     }
 
 private:
