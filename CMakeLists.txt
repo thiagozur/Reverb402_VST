@@ -43,3 +43,7 @@ juce_generate_juce_header(Reverb402)
 target_compile_definitions(Reverb402 PRIVATE
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
+
+if (MSVC)
+    add_compile_options(/utf-8)
+endif()

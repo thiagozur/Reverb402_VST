@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JuceHeader.h>
 
@@ -48,6 +48,20 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     void obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino);
     float obtenerMagnitudFiltros (double frecuencia);
+    juce::StringArray obtenerNombresIR() const
+    {
+        return {
+            "1 - Alumno Derecha",
+            "2 - Alumno Izquierda",
+            "3 - Alumno Wide (prealigned)",
+            "4 - Alumno Wide",
+            "5 - Profesor Derecha",
+            "6 - Profesor Izquierda",
+            "7 - Profesor Wide (prealigned)",
+            "8 - Profesor Wide"
+        };
+    }
+    juce::AudioProcessorValueTreeState& obtenerAPVTS() { return listaParametros; }
     int getCantidadPresets() const { return static_cast<int>(listaCompletaPresets.size()); }
 
     std::vector<Preset> listaCompletaPresets;

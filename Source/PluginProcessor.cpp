@@ -1,4 +1,4 @@
-#include "PluginProcessor.h"
+﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 Reverb402AudioProcessor::Reverb402AudioProcessor()
@@ -29,25 +29,25 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID ("mix", 1),
         "Mix",
-        0.0f,
-        1.0f,
-        0.5f
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.01f),
+        0.5f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (juce::roundToInt (val * 100.0f)) + " %"; })
     ));
     
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID ("decay", 1),
         "Decay",
-        0.1f,
-        5.0f,
-        1.0f
+        juce::NormalisableRange<float> (0.1f, 5.0f, 0.1f),
+        1.0f,
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (val, 1) + "x"; })
     ));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID ("predelay", 1),
         "Pre-Delay",
+        juce::NormalisableRange<float> (0.0f, 150.0f, 1.0f),
         0.0f,
-        150.0f,
-        0.0f
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (juce::roundToInt (val)) + " ms"; })
     ));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
@@ -58,11 +58,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
     ));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID ("lpf", 1),
-        "Low-Pass", 
-        juce::NormalisableRange<float> (1000.0f, 20000.0f, 1.0f, 0.3f),
-        20000.0f
-    ));
+    juce::ParameterID ("lpf", 1),
+    "Low-Pass", 
+    juce::NormalisableRange<float> (1000.0f, 20000.0f, 1.0f, 0.3f),
+    20000.0f,
+    juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int)
+        {
+            if (val >= 1000.0f)
+                return juce::String (val / 1000.0f, 1) + " kHz";
+            return juce::String (juce::roundToInt (val)) + " Hz";
+        })
+));
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         "ir_select",
@@ -718,6 +724,11 @@ int Reverb402AudioProcessor::obtenerIndicePresetPorNombre (const juce::String& n
 
 juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
 {
+    return new Reverb402AudioProcessorEditor (*this);
+}
+
+/* juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
+{
     auto* editorGenerico = new juce::GenericAudioProcessorEditor (*this);
     
     class EditorConPresets : public juce::AudioProcessorEditor
@@ -862,7 +873,7 @@ juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
     };
     
     return new EditorConPresets (*this, editorGenerico);
-}
+} */
 
 void Reverb402AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
