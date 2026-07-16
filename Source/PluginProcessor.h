@@ -15,7 +15,7 @@ struct Preset
     juce::File archivoOrigen;
 };
 
-class Reverb402AudioProcessor : public juce::AudioProcessor, public juce::ChangeBroadcaster
+class Reverb402AudioProcessor : public juce::AudioProcessor
 {
 public:
     Reverb402AudioProcessor();
@@ -48,20 +48,9 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
     void obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino);
     float obtenerMagnitudFiltros (double frecuencia);
+    float obtenerPisoRuidoActual () const { return pisoRuidoActual; }
     double obtenerSampleRate() const { return getSampleRate() > 0.0 ? getSampleRate() : 44100.0; }
-    juce::StringArray obtenerNombresIR() const
-    {
-        return {
-            "1 - Alumno Derecha",
-            "2 - Alumno Izquierda",
-            "3 - Alumno Wide (prealigned)",
-            "4 - Alumno Wide",
-            "5 - Profesor Derecha",
-            "6 - Profesor Izquierda",
-            "7 - Profesor Wide (prealigned)",
-            "8 - Profesor Wide"
-        };
-    }
+    juce::StringArray obtenerNombresIR() const { return nombresIRs; }
     juce::AudioProcessorValueTreeState& obtenerAPVTS() { return listaParametros; }
     int getCantidadPresets() const { return static_cast<int>(listaCompletaPresets.size()); }
 
@@ -75,6 +64,8 @@ public:
 private:
     juce::dsp::ProcessSpec spec;
 
+    float estimarPisoDeRuidoDb (const juce::AudioBuffer<float>& buffer, double sampleRate);
+
     juce::AudioBuffer<float> cargarArchivoIRSeguro (const juce::File& archivoAudio, double& fsSalida, float& compensacionSalida);
 
     juce::AudioBuffer<float> modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR);
@@ -87,6 +78,7 @@ private:
 
     juce::AudioBuffer<float> irHeadEnFondo, irTailEnFondo;
     juce::AudioBuffer<float> irCompletaModificada;
+    float pisoRuidoActual;
     juce::AudioBuffer<float> bufferTail;
 
     juce::AudioBuffer<float> bufferWet;
@@ -97,7 +89,6 @@ private:
     static constexpr double duracionHeadMs = 180.0;
     int latenciaCompensacionMuestras = 0;
     void dividirIREnHeadYTail (const juce::AudioBuffer<float>& irCompleta, double fs, juce::AudioBuffer<float>& outHead, juce::AudioBuffer<float>& outTail);
-    void cargarIREnMotores (juce::AudioBuffer<float>&& head, juce::AudioBuffer<float>&& tail, double fs);
 
     juce::AudioFormatManager empaquetadorFormatos;
     juce::AudioBuffer<float> irOriginal;

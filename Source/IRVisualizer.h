@@ -3,17 +3,16 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class IRWaveformPlot : public juce::Component
+class IRWaveformPlot : public juce::Component, public juce::Timer
 {
 public:
-    IRWaveformPlot (Reverb402AudioProcessor& p) : processor (p)
-    {
-        actualizarOnda();
-    }
+    IRWaveformPlot (Reverb402AudioProcessor& p);
+    ~IRWaveformPlot() override;
 
     void paint (juce::Graphics& g) override;
-    
     void actualizarOnda();
+    void timerCallback() override;
+    void visibilityChanged() override;
 
 private:
     Reverb402AudioProcessor& processor;
@@ -23,15 +22,17 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IRWaveformPlot)
 };
 
-class IRSpectrogramPlot : public juce::Component {
+class IRSpectrogramPlot : public juce::Component, public juce::Timer
+{
 public:
     IRSpectrogramPlot(Reverb402AudioProcessor& p);
     ~IRSpectrogramPlot() override;
 
     void paint (juce::Graphics& g) override;
     void resized() override;
-
     void actualizarEspectrograma();
+    void timerCallback() override;
+    void visibilityChanged() override;
 
 private:
     Reverb402AudioProcessor& processor;
@@ -74,7 +75,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colour (0xFF222222));
+        g.fillAll (juce::Colour (0xFF1F2024));
     }
 
     void resized() override
@@ -84,7 +85,7 @@ public:
         btnWaveform.setBounds (areaBotones.removeFromLeft (120).reduced (2));
         btnSpectrogram.setBounds (areaBotones.removeFromLeft (120).reduced (2));
 
-        auto areaGrafico = bounds.reduced (4);
+        auto areaGrafico = bounds.reduced (20);
         waveformPlot.setBounds (areaGrafico);
         spectrogramPlot.setBounds (areaGrafico);
     }

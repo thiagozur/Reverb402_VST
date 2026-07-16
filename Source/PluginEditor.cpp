@@ -3,6 +3,8 @@
 
 Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (&p), audioProcessor (p), visualizadorIR (p)
 {
+    setLookAndFeel (&estilo402);
+
     addAndMakeVisible (visualizadorIR);
 
     addAndMakeVisible (btnPresetAnterior);
@@ -33,7 +35,7 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
 
     auto configurarKnob = [this] (juce::Slider& slider, juce::Label& label, const juce::String& sufijo) {
         slider.setSliderStyle (juce::Slider::SliderStyle::RotaryHorizontalVerticalDrag);
-        slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+        slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
         slider.setTextValueSuffix (sufijo);
         addAndMakeVisible (slider);
         
@@ -41,11 +43,11 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
         addAndMakeVisible (label);
     };
 
-    configurarKnob (sliderPreDelay, lblPreDelay, "");
-    configurarKnob (sliderDecay, lblDecay, "");
+    configurarKnob (sliderPreDelay, lblPreDelay, " ms");
+    configurarKnob (sliderDecay, lblDecay, "x");
     configurarKnob (sliderHPF, lblHPF, " Hz");
-    configurarKnob (sliderLPF, lblLPF, "");
-    configurarKnob (sliderMix, lblMix, "");
+    configurarKnob (sliderLPF, lblLPF, " kHz");
+    configurarKnob (sliderMix, lblMix, "%");
 
     addAndMakeVisible (comboIR);
     auto nombresIR = audioProcessor.obtenerNombresIR();
@@ -63,23 +65,79 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
     attachmentMix = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "mix", sliderMix);
     attachmentIR = std::make_unique<ComboBoxAttachment> (audioProcessor.obtenerAPVTS(), "ir_select", comboIR);
 
-    sliderHPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
-    sliderLPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    auto actualizarTextoLabel = [] (juce::Slider& s, juce::Label& l, const juce::String& nombreParametro)
+    {
+        juce::String sufijo = s.getTextValueSuffix();
+        double valor = s.getValue();
+
+        juce::String valorTexto;
+
+        if (nombreParametro == "High-Pass")
+            valorTexto = juce::String (static_cast<int>(valor)) + sufijo;
+        else if (nombreParametro == "Low-Pass")
+            valorTexto = juce::String (valor / 1000.0, 1) + sufijo;
+        else if (nombreParametro == "Mix")
+            valorTexto = juce::String (static_cast<int>(valor * 100)) + sufijo;
+        else if (nombreParametro == "Decay")
+            valorTexto = juce::String (valor, 1) + sufijo;
+        else if (nombreParametro == "Pre-Delay")
+            valorTexto = juce::String (static_cast<int>(valor)) + sufijo;
+        else
+            valorTexto = juce::String (valor, 1) + sufijo;
+
+        l.setText (nombreParametro + "\n" + valorTexto, juce::dontSendNotification);
+    };
+
+    sliderPreDelay.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderPreDelay, lblPreDelay, "Pre-Delay"); };
+    sliderDecay.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderDecay, lblDecay, "Decay"); };
+    sliderHPF.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderHPF, lblHPF, "High-Pass"); };
+    sliderLPF.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass"); };
+    sliderMix.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderMix, lblMix, "Mix"); };
+
+    comboPresets.onChange = [this] { visualizadorIR.actualizarGraficos(); };
+    comboIR.onChange = [this] { visualizadorIR.actualizarGraficos(); };
     sliderDecay.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    sliderDecay.addMouseListener(this, false);
+    sliderHPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    sliderHPF.addMouseListener(this, false);
+    sliderLPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
+    sliderLPF.addMouseListener(this, false);
 
-    setSize (800, 600);
+    actualizarTextoLabel (sliderPreDelay, lblPreDelay, "Pre-Delay");
+    actualizarTextoLabel (sliderDecay, lblDecay, "Decay");
+    actualizarTextoLabel (sliderHPF, lblHPF, "High-Pass");
+    actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass");
+    actualizarTextoLabel (sliderMix, lblMix, "Mix");
 
-    audioProcessor.addChangeListener (this);
+    setSize (800, 700);
 }
 
 Reverb402AudioProcessorEditor::~Reverb402AudioProcessorEditor()
 {
-    audioProcessor.removeChangeListener (this);
+    setLookAndFeel (nullptr);
 }
 
 void Reverb402AudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xFF1E1E1E));
+    auto bounds = getLocalBounds();
+
+    auto areaSuperior = bounds.removeFromTop (350);
+    auto areaBorde = bounds.removeFromTop (10);
+    auto areaInferior = bounds;
+
+    g.setColour (juce::Colour (0xFF1F2024)); 
+    g.fillRect (areaSuperior);
+
+    g.setColour (juce::Colour (0xFFFCFCFC)); 
+    g.fillRect (areaBorde);
+
+    g.setColour (juce::Colour (0xFFEAEAEA)); 
+    g.fillRect (areaInferior);
+
+    g.setColour (juce::Colour (0xFF2D2D34).withAlpha (0.3f));
+    g.drawHorizontalLine (areaSuperior.getBottom(), 0.0f, static_cast<float>(getWidth()));
+    g.setColour (juce::Colours::white);
+    g.drawHorizontalLine (areaBorde.getBottom(), 0.0f, static_cast<float>(getWidth()));
 }
 
 void Reverb402AudioProcessorEditor::resized ()
@@ -98,30 +156,69 @@ void Reverb402AudioProcessorEditor::resized ()
 
     comboPresets.setBounds (areaPresets);
 
-    visualizadorIR.setBounds (bounds.removeFromTop (250).reduced (10, 5));
+    visualizadorIR.setBounds (bounds.removeFromTop (300).reduced (10, 8));
 
-    auto areaControles = bounds.reduced (10, 5);
+    bounds.removeFromTop(20);
 
-    auto areaIR = areaControles.removeFromLeft (160);
-    int xComboCentrado = areaIR.getX() + (areaIR.getWidth() - 140) / 2;
-    int yComboCentrado = areaIR.getY() + (areaIR.getHeight() - 32) / 2;
-    comboIR.setBounds (xComboCentrado, yComboCentrado, 140, 32);
+    auto areaControles = bounds.reduced (10, 8);
 
-    int anchoKnob = areaControles.getWidth() / 5;
-    
-    std::vector<std::pair<juce::Slider*, juce::Label*>> knobs = {
+    auto areaIR = areaControles.removeFromTop (45);
+    int xComboCentrado = areaIR.getX() + (areaIR.getWidth() - 340) / 2;
+    int yComboCentrado = areaIR.getY() + (areaIR.getHeight() - 35) / 2;
+    comboIR.setBounds (xComboCentrado, yComboCentrado, 340, 35);
+
+    int anchoDecayKnob = 200;
+    int anchoKnobsChicos = (areaControles.getWidth() - anchoDecayKnob) / 4;
+
+    std::vector<std::pair<juce::Slider*, juce::Label*>> leftKnobs = {
         {&sliderPreDelay, &lblPreDelay},
-        {&sliderDecay, &lblDecay},
-        {&sliderHPF, &lblHPF},
+        {&sliderHPF, &lblHPF}
+    };
+
+    for (auto& k : leftKnobs)
+    {
+        auto areaColumna = areaControles.removeFromLeft (anchoKnobsChicos).reduced (6, 0);
+        
+        int anchoEfectivo = areaColumna.getWidth();
+
+        float deltaX = (anchoDecayKnob - anchoEfectivo) / 2;
+        areaColumna.removeFromTop (deltaX);
+        
+        auto areaKnob = areaColumna.removeFromTop (anchoEfectivo + 0.2f * anchoEfectivo);
+        
+        auto areaLabel = areaColumna.removeFromTop (35);
+
+        k.first->setBounds (areaKnob);
+        k.second->setBounds (areaLabel);
+    }
+
+    auto areaColumnaDecay = areaControles.removeFromLeft (anchoDecayKnob).reduced (6, 0);
+    int anchoEfectivoDecay = areaColumnaDecay.getWidth();
+    auto areaKnobDecay = areaColumnaDecay.removeFromTop (anchoEfectivoDecay + 0.2f * anchoEfectivoDecay);
+    auto areaLabelDecay = areaColumnaDecay.removeFromTop (35);
+    sliderDecay.setBounds (areaKnobDecay);
+    lblDecay.setBounds (areaLabelDecay);
+    
+    std::vector<std::pair<juce::Slider*, juce::Label*>> rightKnobs = {
         {&sliderLPF, &lblLPF},
         {&sliderMix, &lblMix}
     };
 
-    for (auto& k : knobs)
+    for (auto& k : rightKnobs)
     {
-        auto areaIndividual = areaControles.removeFromLeft (anchoKnob).reduced (4, 0);
-        k.second->setBounds (areaIndividual.removeFromTop (20));
-        k.first->setBounds (areaIndividual);
+        auto areaColumna = areaControles.removeFromLeft (anchoKnobsChicos).reduced (6, 0);
+        
+        int anchoEfectivo = areaColumna.getWidth();
+
+        float deltaX = (anchoDecayKnob - anchoEfectivo) / 2;
+        areaColumna.removeFromTop (deltaX);
+        
+        auto areaKnob = areaColumna.removeFromTop (anchoEfectivo + 0.2f * anchoEfectivo);
+        
+        auto areaLabel = areaColumna.removeFromTop (35);
+
+        k.first->setBounds (areaKnob);
+        k.second->setBounds (areaLabel);
     }
 
     visualizadorIR.actualizarGraficos();
@@ -225,13 +322,5 @@ void Reverb402AudioProcessorEditor::ejecutarBorradoPreset()
                     actualizarMenuPresets();
             })
         );
-    }
-}
-
-void Reverb402AudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
-{
-    if (source == &audioProcessor)
-    {
-        visualizadorIR.actualizarGraficos();
     }
 }

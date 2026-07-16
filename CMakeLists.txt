@@ -30,6 +30,7 @@ target_sources(Reverb402 PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/IRVisualizer.cpp
+    Source/Estilo402.cpp
 )
 
 target_link_libraries(Reverb402 PRIVATE

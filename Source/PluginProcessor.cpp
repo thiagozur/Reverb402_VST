@@ -168,6 +168,37 @@ void Reverb402AudioProcessor::dividirIREnHeadYTail (const juce::AudioBuffer<floa
         outTail.setSize (numCanales, 0, false, true, true);
 }
 
+float Reverb402AudioProcessor::estimarPisoDeRuidoDb (const juce::AudioBuffer<float>& buffer, double sampleRate)
+{
+    const int numSamples = buffer.getNumSamples();
+    if (numSamples <= 0)
+        return -60.0f;
+
+    const int muestrasPorVentana = static_cast<int> (0.05 * sampleRate);
+    if (muestrasPorVentana <= 0 || numSamples < muestrasPorVentana)
+        return -60.0f;
+
+    int inicioAnalisis = static_cast<int> (numSamples * 0.7);
+    int muestrasAAnalizar = numSamples - inicioAnalisis;
+
+    std::vector<float> rmsPorVentanaDb;
+
+    for (int pos = inicioAnalisis; pos + muestrasPorVentana <= numSamples; pos += muestrasPorVentana)
+    {
+        float rms = buffer.getRMSLevel (0, pos, muestrasPorVentana);
+        float db = 20.0f * std::log10 (rms + 1e-9f);
+        rmsPorVentanaDb.push_back (db);
+    }
+
+    if (rmsPorVentanaDb.empty())
+        return -60.0f;
+
+    std::sort (rmsPorVentanaDb.begin(), rmsPorVentanaDb.end());
+    float medianaDb = rmsPorVentanaDb[rmsPorVentanaDb.size() / 2];
+
+    return medianaDb;
+}
+
 juce::AudioBuffer<float> Reverb402AudioProcessor::cargarArchivoIRSeguro (const juce::File& archivoAudio, double& fsSalida, float& compensacionSalida)
 {
     juce::AudioBuffer<float> irResultado;
@@ -201,7 +232,17 @@ juce::AudioBuffer<float> Reverb402AudioProcessor::cargarArchivoIRSeguro (const j
             int muestrasRecortadasAlInicio = muestrasArchivo - indPico;
             if (muestrasRecortadasAlInicio > 0)
             {
-                float umbral = 0.01f * valorMaxAbs;
+                float pisoRuidoDb = estimarPisoDeRuidoDb(bufferTemporalRaw, fsSalida);
+                pisoRuidoActual = juce::jlimit(-66.0f, -26.0f, pisoRuidoDb);
+
+                float margenSeguridadDb = 5.0f;
+                float dbCorteDeseado = pisoRuidoDb + margenSeguridadDb;
+                float amplitudCorteAbsoluta = std::pow (10.0f, dbCorteDeseado / 20.0f);
+                float factorUmbral = amplitudCorteAbsoluta / valorMaxAbs;
+                factorUmbral = juce::jlimit (0.0005f, 0.05f, factorUmbral);
+                float umbral = factorUmbral * valorMaxAbs;
+
+                //float umbral = 0.00316f * valorMaxAbs;
                 int ultimoIndiceSobreUmbral = -1;
                 
                 for (int i = 0; i < muestrasRecortadasAlInicio; ++i)
@@ -407,8 +448,6 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         
         hayNuevaIRLista.store (false);
         enTransicion = false;
-
-        sendChangeMessage();
     }
     
     float gananciaObjetivo = enTransicion ? 0.0f : 1.0f;

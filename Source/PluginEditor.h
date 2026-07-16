@@ -3,8 +3,9 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "IRVisualizer.h"
+#include "Estilo402.h"
 
-class Reverb402AudioProcessorEditor : public juce::AudioProcessorEditor, public juce::ChangeListener
+class Reverb402AudioProcessorEditor : public juce::AudioProcessorEditor
 {
 public:
     Reverb402AudioProcessorEditor (Reverb402AudioProcessor&);
@@ -13,10 +14,16 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    void changeListenerCallback (juce::ChangeBroadcaster* source) override;
+    void mouseDoubleClick (const juce::MouseEvent& event) override
+    {
+        if (event.eventComponent == &sliderDecay || event.eventComponent == &sliderHPF || event.eventComponent == &sliderLPF)
+            visualizadorIR.actualizarGraficos();
+    }
 
 private:
     Reverb402AudioProcessor& audioProcessor;
+
+    Estilo402 estilo402;
 
     IRVisualizerContainer visualizadorIR;
 
