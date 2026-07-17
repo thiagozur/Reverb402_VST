@@ -2,11 +2,11 @@
 
 static const int margenIzquierdo = 45;
 static const int margenInferior = 20;
-static const int grosorBorde = 6;
+static const int grosorBorde = 8;
 
 IRWaveformPlot::IRWaveformPlot (Reverb402AudioProcessor& p) : processor (p)
 {
-
+    startTimerHz (25);
 }
 
 IRWaveformPlot::~IRWaveformPlot()
@@ -27,26 +27,31 @@ void IRWaveformPlot::actualizarOnda()
 
     int numSamples = bufferLocal.getNumSamples();
 
-    if (numSamples <= 0 || anchoComponente <= 0)
+    if (numSamples <= 0)
         return;
     
     double sampleRate = processor.obtenerSampleRate();
 
-    double tiempoFijoSegundos = 5.0;
-    int muestrasEn5Segundos = static_cast<int>(tiempoFijoSegundos * sampleRate);
+    double tiempoFijoSegundos = 8.0;
+    int muestrasEn8Segundos = static_cast<int>(tiempoFijoSegundos * sampleRate);
     
-    const float* datosLectura = (numSamples > 0) ? bufferLocal.getReadPointer(0) : nullptr;
+    const float* datosLectura = bufferLocal.getReadPointer(0);
     
     float areaAncho = static_cast<float>(anchoComponente - margenIzquierdo - 2.0f * grosorBorde);
     float areaAlto = static_cast<float>(altoComponente - margenInferior - 2.0f * grosorBorde);
     float centroY = areaAlto / 2.0f + grosorBorde;
 
-    float muestrasPorPixel = static_cast<float>(muestrasEn5Segundos) / areaAncho;
+    float muestrasPorPixel = static_cast<float>(muestrasEn8Segundos) / areaAncho;
+
+    bool primerPunto = true;
+    
+    std::vector<juce::Point<float>> puntosInferiores;
+    puntosInferiores.reserve (static_cast<size_t>(areaAncho));
 
     for (int pixelX = 0; pixelX < static_cast<int>(areaAncho); ++pixelX)
     {
         int inicioRango = static_cast<int>(pixelX * muestrasPorPixel);
-        int finRango = static_cast<int> ((pixelX + 1) * muestrasPorPixel);
+        int finRango = static_cast<int>((pixelX + 1) * muestrasPorPixel);
 
         float maxPositivo = 0.0f;
         float minNegativo = 0.0f;
@@ -85,9 +90,21 @@ void IRWaveformPlot::actualizarOnda()
 
         float targetX = static_cast<float>(pixelX + margenIzquierdo + grosorBorde + 1);
         
-        caminoOnda.startNewSubPath (targetX, yArriba);
-        caminoOnda.lineTo(targetX, yAbajo);
+        if (primerPunto)
+        {
+            caminoOnda.startNewSubPath (targetX, yArriba);
+            primerPunto = false;
+        }
+        else
+            caminoOnda.lineTo (targetX, yArriba);
+
+        puntosInferiores.push_back ({ targetX, yAbajo });
     }
+
+    for (auto it = puntosInferiores.rbegin(); it != puntosInferiores.rend(); ++it)
+        caminoOnda.lineTo (it->x, it->y);
+
+    caminoOnda.closeSubPath();
 
     repaint();
 }
@@ -109,14 +126,55 @@ void IRWaveformPlot::paint (juce::Graphics& g)
 {
     float anchoBorde = static_cast<float>(getWidth());
     float altoBorde = static_cast<float>(getHeight());
+
     g.setColour (juce::Colour (0xFF111113));
     g.fillRoundedRectangle (0.0f, 0.0f, anchoBorde, altoBorde, 10.0f);
 
     float alto = altoBorde - 2.0f * grosorBorde;
     float ancho = anchoBorde - 2.0f * grosorBorde;
 
-    g.setColour (juce::Colour (0xFF1F2024));
+    g.setColour (juce::Colour (0xFFD1D1D1));
     g.fillRoundedRectangle (grosorBorde, grosorBorde, ancho, alto, 10.0f);
+
+    float areaAncho = ancho - margenIzquierdo;
+    float areaAlto = alto - margenInferior;
+    float centroY = areaAlto / 2.0f + grosorBorde;
+
+    const juce::Font fuenteTicks ("Arial", 12.0f, juce::Font::bold);
+    g.setFont (fuenteTicks);
+
+    for (int i = 1; i < 8; ++i)
+    {
+        float x = margenIzquierdo + grosorBorde + (areaAncho / 8.0f) * i + 1;
+
+        g.setColour (juce::Colour (0xFF121212).withAlpha (0.3f));
+        g.drawVerticalLine (static_cast<int>(x), grosorBorde, areaAlto + grosorBorde);
+
+        g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
+        g.drawText (juce::String (i) + " s", static_cast<int>(x) - 15, static_cast<int>(areaAlto + grosorBorde) + 3, 30, 15, juce::Justification::centred);
+    }
+
+    float rangoDibujoY = (areaAlto * 0.85f) / 2.0f;
+
+    g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
+    for (int i = 0; i < 5; ++i)
+    {
+        float amplitud = 1.0f - (static_cast<float>(i) / 2.0f);
+        float y = centroY - ((amplitud) * rangoDibujoY);
+        juce::String etiqueta (amplitud, 1);
+        g.drawText (etiqueta, 5, static_cast<int>(y) - 6, margenIzquierdo + grosorBorde - 12, 12, juce::Justification::right);
+    }
+
+    g.setColour (juce::Colour (0xFF121212).withAlpha (0.3f));
+    g.drawHorizontalLine (static_cast<int>(centroY), margenIzquierdo + grosorBorde, ancho + grosorBorde);
+
+    g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
+    g.drawHorizontalLine (static_cast<int>(areaAlto + grosorBorde), margenIzquierdo + grosorBorde, ancho + grosorBorde);
+
+    g.drawVerticalLine (margenIzquierdo + grosorBorde, grosorBorde, areaAlto + grosorBorde);
+
+    g.setColour (juce::Colour (0xFF00A0D2));
+    g.fillPath (caminoOnda);
 
     {
         juce::Graphics::ScopedSaveState saveState (g);
@@ -127,6 +185,52 @@ void IRWaveformPlot::paint (juce::Graphics& g)
 
         float xInicio = grosorBorde;
         float xFin = grosorBorde + ancho;
+
+        float alturaSombra = juce::jmin (40.0f, alto * 0.25f); 
+
+        juce::ColourGradient sombraInterior;
+        sombraInterior.isRadial = false;
+        sombraInterior.point1 = juce::Point<float> (xInicio, grosorBorde);
+        sombraInterior.point2 = juce::Point<float> (xInicio, grosorBorde + alturaSombra);
+
+        sombraInterior.addColour (0.0f, juce::Colours::black.withAlpha (1.0f));  
+        sombraInterior.addColour (0.7f, juce::Colours::black.withAlpha (0.3f)); 
+        sombraInterior.addColour (1.0f, juce::Colours::transparentBlack);        
+        
+        g.setGradientFill (sombraInterior);
+        g.fillRect (xInicio, static_cast<float>(grosorBorde), ancho, alturaSombra);
+
+        float anchoSombraOclusion = juce::jmin (8.0f, ancho * 0.03f);
+        juce::ColourGradient sombraInferior;
+        sombraInferior.isRadial = false;
+        sombraInferior.point1 = juce::Point<float> (xInicio, grosorBorde + alto);
+        sombraInferior.point2 = juce::Point<float> (xInicio, grosorBorde + alto - anchoSombraOclusion);
+
+        sombraInferior.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraInferior.addColour (1.0f, juce::Colours::transparentBlack);
+
+        g.setGradientFill (sombraInferior);
+        g.fillRect (xInicio, grosorBorde + alto - anchoSombraOclusion, ancho, anchoSombraOclusion);
+
+        juce::ColourGradient sombraIzquierda;
+        sombraIzquierda.isRadial = false;
+        sombraIzquierda.point1 = juce::Point<float> (xInicio, grosorBorde);
+        sombraIzquierda.point2 = juce::Point<float> (xInicio + anchoSombraOclusion, grosorBorde);
+        sombraIzquierda.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraIzquierda.addColour (1.0f, juce::Colours::transparentBlack);
+        
+        g.setGradientFill (sombraIzquierda);
+        g.fillRect (xInicio, static_cast<float> (grosorBorde), anchoSombraOclusion, alto);
+
+        juce::ColourGradient sombraDerecha;
+        sombraDerecha.isRadial = false;
+        sombraDerecha.point1 = juce::Point<float> (xFin, grosorBorde);
+        sombraDerecha.point2 = juce::Point<float> (xFin - anchoSombraOclusion, grosorBorde);
+        sombraDerecha.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraDerecha.addColour (1.0f, juce::Colours::transparentBlack);
+        
+        g.setGradientFill (sombraDerecha);
+        g.fillRect (xFin - anchoSombraOclusion, static_cast<float> (grosorBorde), anchoSombraOclusion, alto);
 
         float yLaterales = grosorBorde + (alto * 0.25f); 
         float puntoControlX = xInicio + (ancho / 2.0f);
@@ -142,57 +246,21 @@ void IRWaveformPlot::paint (juce::Graphics& g)
         juce::ColourGradient gradienteVidrio;
         gradienteVidrio.isRadial = false;
         gradienteVidrio.point1 = juce::Point<float> (xInicio, grosorBorde);
-        gradienteVidrio.point2 = juce::Point<float> (xInicio, puntoControlY - 20);
+        gradienteVidrio.point2 = juce::Point<float> (xInicio, puntoControlY - 15);
         
-        gradienteVidrio.addColour (0.0,  juce::Colours::white.withAlpha (0.16f));
-        gradienteVidrio.addColour (0.7,  juce::Colours::white.withAlpha (0.04f));
+        gradienteVidrio.addColour (0.0,  juce::Colours::white.withAlpha (0.12f));
+        gradienteVidrio.addColour (0.7,  juce::Colours::white.withAlpha (0.35f));
         gradienteVidrio.addColour (1.0,  juce::Colours::transparentWhite);
 
         g.setGradientFill (gradienteVidrio);
         g.fillPath (caminoReflejo);
-        
-        g.setColour (juce::Colours::white.withAlpha (0.15f));
+
+        g.setColour (juce::Colours::white.withAlpha (0.18f));
         g.drawHorizontalLine (static_cast<int>(grosorBorde), xInicio, xFin);
+
+        g.setColour (juce::Colours::white.withAlpha (0.18f));
+        g.drawHorizontalLine (static_cast<int>(grosorBorde + alto - 1.0f), xInicio, xFin);
     }
-
-    float areaAncho = ancho - margenIzquierdo;
-    float areaAlto = alto - margenInferior;
-    float centroY = areaAlto / 2.0f + grosorBorde;
-
-    g.setFont (10.0f);
-
-    for (int i = 1; i < 5; ++i)
-    {
-        float x = margenIzquierdo + grosorBorde + (areaAncho / 5.0f) * i;
-
-        g.setColour (juce::Colours::white.withAlpha (0.08f));
-        g.drawVerticalLine (static_cast<int>(x), grosorBorde, areaAlto + grosorBorde);
-
-        g.setColour (juce::Colours::white.withAlpha (0.4f));
-        g.drawText (juce::String (i) + "s", static_cast<int>(x) - 15, static_cast<int>(areaAlto + grosorBorde) + 3, 30, 15, juce::Justification::centred);
-    }
-
-    float rangoDibujoY = (areaAlto * 0.85f) / 2.0f;
-
-    g.setColour (juce::Colours::white.withAlpha (0.4f));
-    for (int i = 0; i < 5; ++i)
-    {
-        float amplitud = 1.0f - (static_cast<float>(i) / 2.0f);
-        float y = centroY - ((amplitud) * rangoDibujoY);
-        juce::String etiqueta (amplitud, 1);
-        g.drawText (etiqueta, 5, static_cast<int>(y) - 6, margenIzquierdo + grosorBorde - 12, 12, juce::Justification::right);
-    }
-
-    g.setColour (juce::Colours::white.withAlpha (0.08f));
-    g.drawHorizontalLine (static_cast<int>(centroY), margenIzquierdo + grosorBorde, ancho + grosorBorde);
-
-    g.setColour (juce::Colours::white.withAlpha (0.15f));
-    g.drawHorizontalLine (static_cast<int>(areaAlto + grosorBorde), margenIzquierdo + grosorBorde, ancho + grosorBorde);
-
-    g.drawVerticalLine (margenIzquierdo + grosorBorde, grosorBorde, areaAlto + grosorBorde);
-
-    g.setColour (juce::Colour (0xFF00E5FF)); 
-    g.strokePath (caminoOnda, juce::PathStrokeType (1.2f));
 }
 
 IRSpectrogramPlot::IRSpectrogramPlot (Reverb402AudioProcessor& p) : processor (p)
@@ -231,6 +299,7 @@ void IRSpectrogramPlot::actualizarEspectrograma()
     processor.obtenerCopiaIrActual (bufferLocal);
     int numSamples = bufferLocal.getNumSamples();
     double sampleRate = processor.obtenerSampleRate();
+    double nyquist = sampleRate / 2.0;
 
     imagenEspectrograma.clear (imagenEspectrograma.getBounds(), juce::Colours::transparentBlack);
 
@@ -251,7 +320,7 @@ void IRSpectrogramPlot::actualizarEspectrograma()
     {
         juce::Image::BitmapData mapaBits (imagenEspectrograma, juce::Image::BitmapData::writeOnly);
 
-        juce::Colour colorBase = juce::Colour (0xFF00E5FF);  
+        juce::Colour colorBase = juce::Colour (0xFF4D9823);  
 
         for (int pixelX = 0; pixelX < areaAncho; ++pixelX)
         {
@@ -292,6 +361,14 @@ void IRSpectrogramPlot::actualizarEspectrograma()
                 float fraccionY = static_cast<float>(targetY) / static_cast<float>(areaAlto);
                 float factorLog = std::pow (1.0f - fraccionY, 2.0f);
 
+                float frecuenciaPixel = static_cast<float>(factorLog * nyquist);
+
+                if (frecuenciaPixel < 20.0f || frecuenciaPixel > 20000.0f)
+                {
+                    mapaBits.setPixelColour (pixelX, targetY, juce::Colours::transparentBlack);
+                    continue;
+                }
+
                 float indexBinFloat = factorLog * ((fftSize / 2) - 1);
 
                 int binBajo = static_cast<int>(std::floor (indexBinFloat));
@@ -316,14 +393,6 @@ void IRSpectrogramPlot::actualizarEspectrograma()
         }
     }
 
-    int tamañoKernel = 5;
-    juce::ImageConvolutionKernel kernel (tamañoKernel);
-    kernel.createGaussianBlur(4.0f);
-
-    juce::Image imagenDesenfoque (imagenEspectrograma.getFormat(), areaAncho, areaAlto, true);
-    kernel.applyToImage (imagenDesenfoque, imagenEspectrograma, imagenEspectrograma.getBounds());
-    imagenEspectrograma = imagenDesenfoque;
-
     repaint();
 }
 
@@ -344,59 +413,21 @@ void IRSpectrogramPlot::paint (juce::Graphics& g)
 {
     float anchoBorde = static_cast<float>(getWidth());
     float altoBorde = static_cast<float>(getHeight());
+
     g.setColour (juce::Colour (0xFF111113));
     g.fillRoundedRectangle (0.0f, 0.0f, anchoBorde, altoBorde, 10.0f);
 
     float alto = altoBorde - 2.0f * grosorBorde;
     float ancho = anchoBorde - 2.0f * grosorBorde;
 
-    g.setColour (juce::Colour (0xFF18181C));
+    g.setColour (juce::Colour (0xFFD1D1D1));
     g.fillRoundedRectangle (grosorBorde, grosorBorde, ancho, alto, 10.0f);
-
-    {
-        juce::Graphics::ScopedSaveState saveState (g);
-        
-        juce::Path mascaraRedondeada;
-        mascaraRedondeada.addRoundedRectangle (grosorBorde, grosorBorde, ancho, alto, 10.0f);
-        g.reduceClipRegion (mascaraRedondeada);
-
-        float xInicio = grosorBorde;
-        float xFin = grosorBorde + ancho;
-
-        float yLaterales = grosorBorde + (alto * 0.25f); 
-        float puntoControlX = xInicio + (ancho / 2.0f);
-        float puntoControlY = grosorBorde + (alto * 0.45f); 
-
-        juce::Path caminoReflejo;
-        caminoReflejo.startNewSubPath (xInicio, grosorBorde);
-        caminoReflejo.lineTo (xInicio, yLaterales);
-        caminoReflejo.quadraticTo (puntoControlX, puntoControlY, xFin, yLaterales);
-        caminoReflejo.lineTo (xFin, grosorBorde);
-        caminoReflejo.closeSubPath();
-
-        juce::ColourGradient gradienteVidrio;
-        gradienteVidrio.isRadial = false;
-        gradienteVidrio.point1 = juce::Point<float> (xInicio, grosorBorde);
-        gradienteVidrio.point2 = juce::Point<float> (xInicio, puntoControlY - 20);
-        
-        gradienteVidrio.addColour (0.0,  juce::Colours::white.withAlpha (0.16f));
-        gradienteVidrio.addColour (0.7,  juce::Colours::white.withAlpha (0.04f));
-        gradienteVidrio.addColour (1.0,  juce::Colours::transparentWhite);
-
-        g.setGradientFill (gradienteVidrio);
-        g.fillPath (caminoReflejo);
-        
-        g.setColour (juce::Colours::white.withAlpha (0.15f));
-        g.drawHorizontalLine (static_cast<int>(grosorBorde), xInicio, xFin);
-    }
 
     float areaAncho = ancho - margenIzquierdo;
     float areaAlto = alto - margenInferior;
 
-    if (imagenEspectrograma.isValid())
-        g.drawImageAt (imagenEspectrograma, margenIzquierdo + grosorBorde + 1, grosorBorde);
-
-    g.setFont (10.0f);
+    const juce::Font fuenteTicks ("Arial", 12.0f, juce::Font::bold);
+    g.setFont (fuenteTicks);
 
     double sampleRate = processor.obtenerSampleRate();
     double nyquist = sampleRate / 2.0;
@@ -412,28 +443,117 @@ void IRSpectrogramPlot::paint (juce::Graphics& g)
 
             if (y >= 0 && y < (areaAlto + grosorBorde))
             {
-                g.setColour (juce::Colours::white.withAlpha (0.05f));
+                g.setColour (juce::Colour (0xFF121212).withAlpha (0.3f));
                 g.drawHorizontalLine (static_cast<int>(y), static_cast<float>(margenIzquierdo + grosorBorde), ancho + grosorBorde);
 
-                g.setColour (juce::Colours::white.withAlpha (0.4f));
-                juce::String textoFreq = (f >= 1000.0f) ? juce::String (f / 1000.0f, 1) + " kHz" : juce::String (static_cast<int>(f)) + " Hz";
+                g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
+                juce::String textoFreq = (f >= 1000.0f) ? juce::String (f / 1000.0f) + " kHz" : juce::String (static_cast<int>(f)) + " Hz";
                 g.drawText (textoFreq, 5, static_cast<int>(y) - 6, margenIzquierdo + grosorBorde - 12, 12, juce::Justification::right);
             }
         }
     }
 
-    for (int i = 1; i < 5; ++i)
+    for (int i = 1; i < 8; ++i)
     {
-        float x = grosorBorde + margenIzquierdo + (areaAncho / 5.0f) * i;
+        float x = grosorBorde + margenIzquierdo + (areaAncho / 8.0f) * i + 1;
         
-        g.setColour (juce::Colours::white.withAlpha (0.08f));
+        g.setColour (juce::Colour (0xFF121212).withAlpha (0.3f));
         g.drawVerticalLine (static_cast<int>(x), grosorBorde, areaAlto + grosorBorde);
         
-        g.setColour (juce::Colours::white.withAlpha (0.4f));
+        g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
         g.drawText (juce::String (i) + " s", static_cast<int>(x) - 15, static_cast<int>(areaAlto + grosorBorde) + 3, 30, 15, juce::Justification::centred);
     }
 
-    g.setColour (juce::Colours::white.withAlpha (0.15f));
+    g.setColour (juce::Colour (0xFF121212).withAlpha (0.7f));
     g.drawVerticalLine (margenIzquierdo + grosorBorde, grosorBorde, areaAlto + grosorBorde);
     g.drawHorizontalLine (static_cast<int>(areaAlto + grosorBorde), static_cast<float>(margenIzquierdo + grosorBorde), ancho + grosorBorde);
+
+    if (imagenEspectrograma.isValid())
+        g.drawImageAt (imagenEspectrograma, margenIzquierdo + grosorBorde + 1, grosorBorde);
+
+    {
+        juce::Graphics::ScopedSaveState saveState (g);
+        
+        juce::Path mascaraRedondeada;
+        mascaraRedondeada.addRoundedRectangle (grosorBorde, grosorBorde, ancho, alto, 10.0f);
+        g.reduceClipRegion (mascaraRedondeada);
+
+        float xInicio = grosorBorde;
+        float xFin = grosorBorde + ancho;
+
+        float alturaSombra = juce::jmin (40.0f, alto * 0.25f); 
+
+        juce::ColourGradient sombraInterior;
+        sombraInterior.isRadial = false;
+        sombraInterior.point1 = juce::Point<float> (xInicio, grosorBorde);
+        sombraInterior.point2 = juce::Point<float> (xInicio, grosorBorde + alturaSombra);
+
+        sombraInterior.addColour (0.0f, juce::Colours::black.withAlpha (1.0f));  
+        sombraInterior.addColour (0.7f, juce::Colours::black.withAlpha (0.3f)); 
+        sombraInterior.addColour (1.0f, juce::Colours::transparentBlack);        
+        
+        g.setGradientFill (sombraInterior);
+        g.fillRect (xInicio, static_cast<float>(grosorBorde), ancho, alturaSombra);
+
+        float anchoSombraOclusion = juce::jmin (8.0f, ancho * 0.03f);
+        juce::ColourGradient sombraInferior;
+        sombraInferior.isRadial = false;
+        sombraInferior.point1 = juce::Point<float> (xInicio, grosorBorde + alto);
+        sombraInferior.point2 = juce::Point<float> (xInicio, grosorBorde + alto - anchoSombraOclusion);
+
+        sombraInferior.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraInferior.addColour (1.0f, juce::Colours::transparentBlack);
+
+        g.setGradientFill (sombraInferior);
+        g.fillRect (xInicio, grosorBorde + alto - anchoSombraOclusion, ancho, anchoSombraOclusion);
+
+        juce::ColourGradient sombraIzquierda;
+        sombraIzquierda.isRadial = false;
+        sombraIzquierda.point1 = juce::Point<float> (xInicio, grosorBorde);
+        sombraIzquierda.point2 = juce::Point<float> (xInicio + anchoSombraOclusion, grosorBorde);
+        sombraIzquierda.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraIzquierda.addColour (1.0f, juce::Colours::transparentBlack);
+        
+        g.setGradientFill (sombraIzquierda);
+        g.fillRect (xInicio, static_cast<float> (grosorBorde), anchoSombraOclusion, alto);
+
+        juce::ColourGradient sombraDerecha;
+        sombraDerecha.isRadial = false;
+        sombraDerecha.point1 = juce::Point<float> (xFin, grosorBorde);
+        sombraDerecha.point2 = juce::Point<float> (xFin - anchoSombraOclusion, grosorBorde);
+        sombraDerecha.addColour (0.0f, juce::Colours::black.withAlpha (0.35f));
+        sombraDerecha.addColour (1.0f, juce::Colours::transparentBlack);
+        
+        g.setGradientFill (sombraDerecha);
+        g.fillRect (xFin - anchoSombraOclusion, static_cast<float> (grosorBorde), anchoSombraOclusion, alto);
+
+        float yLaterales = grosorBorde + (alto * 0.25f); 
+        float puntoControlX = xInicio + (ancho / 2.0f);
+        float puntoControlY = grosorBorde + (alto * 0.45f); 
+
+        juce::Path caminoReflejo;
+        caminoReflejo.startNewSubPath (xInicio, grosorBorde);
+        caminoReflejo.lineTo (xInicio, yLaterales);
+        caminoReflejo.quadraticTo (puntoControlX, puntoControlY, xFin, yLaterales);
+        caminoReflejo.lineTo (xFin, grosorBorde);
+        caminoReflejo.closeSubPath();
+
+        juce::ColourGradient gradienteVidrio;
+        gradienteVidrio.isRadial = false;
+        gradienteVidrio.point1 = juce::Point<float> (xInicio, grosorBorde);
+        gradienteVidrio.point2 = juce::Point<float> (xInicio, puntoControlY - 15);
+        
+        gradienteVidrio.addColour (0.0,  juce::Colours::white.withAlpha (0.12f));
+        gradienteVidrio.addColour (0.7,  juce::Colours::white.withAlpha (0.35f));
+        gradienteVidrio.addColour (1.0,  juce::Colours::transparentWhite);
+
+        g.setGradientFill (gradienteVidrio);
+        g.fillPath (caminoReflejo);
+
+        g.setColour (juce::Colours::white.withAlpha (0.18f));
+        g.drawHorizontalLine (static_cast<int>(grosorBorde), xInicio, xFin);
+
+        g.setColour (juce::Colours::white.withAlpha (0.18f));
+        g.drawHorizontalLine (static_cast<int>(grosorBorde + alto - 1.0f), xInicio, xFin);
+    }
 }

@@ -113,14 +113,14 @@ private:
     std::atomic<float>* paramIRSelection = nullptr;
 
     juce::StringArray nombresIRs {
-        "1 - Alumno Izquierda",
-        "2 - Alumno Derecha",
-        "3 - Alumno Wide",
-        "4 - Alumno Wide (Prealigned)",
-        "5 - Profesor Izquierda",
-        "6 - Profesor Derecha",
-        "7 - Profesor Wide",
-        "8 - Profesor Wide (Prealigned)"
+        "IR 1 - Alumno Izquierda",
+        "IR 2 - Alumno Derecha",
+        "IR 3 - Alumno Wide",
+        "IR 4 - Alumno Wide (Prealigned)",
+        "IR 5 - Profesor Izquierda",
+        "IR 6 - Profesor Derecha",
+        "IR 7 - Profesor Wide",
+        "IR 8 - Profesor Wide (Prealigned)"
     };
 
     int ultimaIrCargada = -1;

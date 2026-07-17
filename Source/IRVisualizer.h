@@ -75,7 +75,7 @@ public:
 
     void paint (juce::Graphics& g) override
     {
-        g.fillAll (juce::Colour (0xFF1F2024));
+        g.fillAll (juce::Colours::transparentBlack);
     }
 
     void resized() override

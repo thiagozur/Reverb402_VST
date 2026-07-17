@@ -2,18 +2,18 @@
 
 Estilo402::Estilo402()
     {
-        setColour (juce::Slider::thumbColourId, juce::Colour (0xFF00E5FF));
-        setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xFF00E5FF));
+        setColour (juce::Slider::thumbColourId, juce::Colour (0xFF00A0D2));
+        setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xFF00A0D2));
         setColour (juce::Slider::rotarySliderOutlineColourId, juce::Colour (0xFF2A2A30));
 
-        setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xFF1F2024));
+        setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xFF111113));
         setColour (juce::ComboBox::outlineColourId, juce::Colour (0xFF535660));
-        setColour (juce::ComboBox::focusedOutlineColourId, juce::Colour (0xFF00E5FF));
-        setColour (juce::ComboBox::arrowColourId, juce::Colour (0xFF00E5FF));
+        setColour (juce::ComboBox::focusedOutlineColourId, juce::Colour (0xFF00A0D2));
+        setColour (juce::ComboBox::arrowColourId, juce::Colour (0xFF00A0D2));
         setColour (juce::ComboBox::textColourId, juce::Colours::white.withAlpha (0.9f));
 
-        setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF1F2024));
-        setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xFF00E5FF));
+        setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF111113));
+        setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xFF00A0D2));
         setColour (juce::TextButton::textColourOffId, juce::Colours::white.withAlpha (0.8f));
         setColour (juce::TextButton::textColourOnId, juce::Colours::black);
 

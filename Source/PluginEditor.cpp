@@ -121,14 +121,40 @@ void Reverb402AudioProcessorEditor::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
-    auto areaSuperior = bounds.removeFromTop (350);
+    auto areaMenuPresets = bounds.removeFromTop (45);
+    auto areaSuperior = bounds.removeFromTop (305);
     auto areaBorde = bounds.removeFromTop (10);
     auto areaInferior = bounds;
 
-    g.setColour (juce::Colour (0xFF1F2024)); 
+    g.setColour (juce::Colour (0xFF111113)); 
+    g.fillRect (areaMenuPresets);
+
+    g.setColour (juce::Colours::white.withAlpha (0.1f));
+    g.drawHorizontalLine (areaMenuPresets.getBottom() - 1, 0.0f,  areaMenuPresets.getWidth());
+
+    juce::ColourGradient shadeSuperior;
+    shadeSuperior.isRadial = false;
+    shadeSuperior.point1 = areaSuperior.toFloat().getTopLeft();
+    shadeSuperior.point2 = areaSuperior.toFloat().getBottomLeft();
+
+    shadeSuperior.addColour (0.0f, juce::Colour (0xFF1F2024).darker(0.4));
+    shadeSuperior.addColour (0.05f, juce::Colour (0xFF1F2024));
+    shadeSuperior.addColour (0.95f, juce::Colour (0xFF1F2024));
+    shadeSuperior.addColour (1.0f, juce::Colour (0xFF1F2024).darker(0.4));
+    
+    g.setGradientFill(shadeSuperior);
     g.fillRect (areaSuperior);
 
-    g.setColour (juce::Colour (0xFFFCFCFC)); 
+    juce::ColourGradient shadeBorde;
+    shadeBorde.isRadial = false;
+    shadeBorde.point1 = areaBorde.toFloat().getTopLeft();
+    shadeBorde.point2 = areaBorde.toFloat().getBottomLeft();
+
+    shadeBorde.addColour (0.0f, juce::Colour (0xFFFCFCFC).darker(0.6));
+    shadeBorde.addColour (0.8f, juce::Colour (0xFFFCFCFC));
+    shadeBorde.addColour (1.0f, juce::Colour (0xFFFCFCFC));
+
+    g.setGradientFill(shadeBorde); 
     g.fillRect (areaBorde);
 
     g.setColour (juce::Colour (0xFFEAEAEA)); 
