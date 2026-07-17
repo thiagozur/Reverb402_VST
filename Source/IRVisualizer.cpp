@@ -309,11 +309,11 @@ void IRSpectrogramPlot::actualizarEspectrograma()
         return;
     }
 
-    double tiempoFijoSegundos = 5.0;
-    int muestrasEn5Segundos = static_cast<int>(tiempoFijoSegundos * sampleRate);
+    double tiempoFijoSegundos = 8.0;
+    int muestrasEn8Segundos = static_cast<int>(tiempoFijoSegundos * sampleRate);
 
     const float* datosLectura = bufferLocal.getReadPointer(0);
-    float muestrasPorPixel = static_cast<float>(muestrasEn5Segundos) / static_cast<float>(areaAncho);
+    float muestrasPorPixel = static_cast<float>(muestrasEn8Segundos) / static_cast<float>(areaAncho);
 
     std::array<float, fftSize * 2> datosFFT;
 

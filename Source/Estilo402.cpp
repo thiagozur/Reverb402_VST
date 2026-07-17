@@ -30,7 +30,7 @@ Estilo402::Estilo402()
             const juce::Font font ("Arial", 18.0f, juce::Font::bold);
 
             g.setFont (font);
-            g.setColour (label.findColour (juce::Label::textColourId).withMultipliedAlpha(alpha));
+            g.setColour (label.findColour (juce::Label::textColourId).withMultipliedAlpha (alpha));
 
             auto area = label.getLocalBounds().toFloat();
             g.drawFittedText (label.getText(), area.getSmallestIntegerContainer(), juce::Justification::centred, 2);
@@ -59,6 +59,19 @@ Estilo402::Estilo402()
 
         g.setColour (outlineColour);
         g.drawRoundedRectangle (bounds.reduced (2.0f), cornerSize, 1.0f);
+    }
+
+    void Estilo402::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+    {
+        auto area = button.getLocalBounds().toFloat();
+        
+        const juce::Font font ("Arial", 18.0f, juce::Font::bold);
+        g.setFont (font);
+
+        auto alpha = button.isEnabled() ? 1.0f : 0.5f;
+        g.setColour (button.findColour (juce::Label::textColourId).withMultipliedAlpha (alpha));
+
+        g.drawFittedText (button.getButtonText(), area.getSmallestIntegerContainer(), juce::Justification::centred, 2);
     }
 
     void Estilo402::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height, float sliderPosProportional, float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider)

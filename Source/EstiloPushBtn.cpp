@@ -1,6 +1,6 @@
 #include "EstiloPushBtn.h"
 
-void EstiloPushBtn::drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& /*backgroundColour*/, bool /*shouldDrawButtonAsHighlighted*/, bool /*shouldDrawButtonAsDown*/)
+void EstiloPushBtn::drawButtonBackground (juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
 {
     auto bounds = button.getLocalBounds().toFloat();
     auto radioCurvatura = 3.0f;
@@ -50,12 +50,11 @@ void EstiloPushBtn::drawButtonBackground (juce::Graphics& g, juce::Button& butto
     }
 }
 
-void EstiloPushBtn::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool /*shouldDrawButtonAsHighlighted*/, bool /*shouldDrawButtonAsDown*/)
+void EstiloPushBtn::drawButtonText (juce::Graphics& g, juce::TextButton& button, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
 {
     auto bounds = button.getLocalBounds();
     bool estaActivo = button.getToggleState();
 
-    g.setColour (estaActivo ? juce::Colour (0xFFFFFFFF) : juce::Colour (0xFF9A9C02).withAlpha(0.7f));
     g.setColour (estaActivo ? juce::Colour (0xFFEAEAEA) : juce::Colour (0xFF8E9095));
     g.setFont (juce::Font ("Arial", 11.0f, juce::Font::bold));
     
