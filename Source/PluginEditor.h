@@ -5,11 +5,11 @@
 #include "IRVisualizer.h"
 #include "Estilo402.h"
 
-class Reverb402AudioProcessorEditor : public juce::AudioProcessorEditor
+class Reverb402Component : public juce::Component
 {
 public:
-    Reverb402AudioProcessorEditor (Reverb402AudioProcessor&);
-    ~Reverb402AudioProcessorEditor() override;
+    Reverb402Component (Reverb402AudioProcessor&);
+    ~Reverb402Component() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -62,5 +62,22 @@ private:
     void mostrarDialogoGuardarPreset();
     void ejecutarBorradoPreset();
     
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Reverb402AudioProcessorEditor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Reverb402Component)
+};
+
+class WrappedReverb402AudioProcessorEditor : public AudioProcessorEditor 
+{
+public:
+    WrappedReverb402AudioProcessorEditor(Reverb402AudioProcessor&);
+    void resized() override;
+
+private:
+    static constexpr int originalWidth { 800 };
+    static constexpr int originalHeight { 700 };
+
+    juce::ComponentBoundsConstrainer myConstrainer;
+
+    Reverb402Component reverb402Component;
+
+    ApplicationProperties applicationProperties;
 };

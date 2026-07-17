@@ -787,7 +787,7 @@ int Reverb402AudioProcessor::obtenerIndicePresetPorNombre (const juce::String& n
 
 juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
 {
-    return new Reverb402AudioProcessorEditor (*this);
+    return new WrappedReverb402AudioProcessorEditor (*this);
 }
 
 void Reverb402AudioProcessor::getStateInformation (juce::MemoryBlock& destData)

@@ -1,7 +1,7 @@
 ﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (&p), audioProcessor (p), visualizadorIR (p)
+Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProcessor (p), visualizadorIR (p)
 {
     setLookAndFeel (&estilo402);
 
@@ -106,15 +106,15 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
     actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass");
     actualizarTextoLabel (sliderMix, lblMix, "Mix");
 
-    setSize (800, 700);
+    //setSize (800, 700);
 }
 
-Reverb402AudioProcessorEditor::~Reverb402AudioProcessorEditor()
+Reverb402Component::~Reverb402Component()
 {
     setLookAndFeel (nullptr);
 }
 
-void Reverb402AudioProcessorEditor::paint (juce::Graphics& g)
+void Reverb402Component::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
 
@@ -163,7 +163,7 @@ void Reverb402AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawHorizontalLine (areaBorde.getBottom(), 0.0f, static_cast<float>(getWidth()));
 }
 
-void Reverb402AudioProcessorEditor::resized ()
+void Reverb402Component::resized ()
 {
     auto bounds = getLocalBounds();
 
@@ -247,7 +247,7 @@ void Reverb402AudioProcessorEditor::resized ()
     visualizadorIR.actualizarGraficos();
 }
 
-void Reverb402AudioProcessorEditor::actualizarMenuPresets()
+void Reverb402Component::actualizarMenuPresets()
 {
     comboPresets.clear (juce::dontSendNotification);
 
@@ -267,7 +267,7 @@ void Reverb402AudioProcessorEditor::actualizarMenuPresets()
     comboPresets.setSelectedId (presetActual + 1, juce::dontSendNotification);
 }
 
-void Reverb402AudioProcessorEditor::cambiarPresetRelativo (int direccion)
+void Reverb402Component::cambiarPresetRelativo (int direccion)
 {
     int total = audioProcessor.getNumPrograms();
 
@@ -281,7 +281,7 @@ void Reverb402AudioProcessorEditor::cambiarPresetRelativo (int direccion)
     actualizarMenuPresets();
 }
 
-void Reverb402AudioProcessorEditor::mostrarDialogoGuardarPreset()
+void Reverb402Component::mostrarDialogoGuardarPreset()
 {
     auto cuadroTexto = std::make_unique<juce::AlertWindow> ("Guardar Preset", "Introducir nombre:", juce::MessageBoxIconType::NoIcon, this);
     cuadroTexto->addTextEditor ("nombrePreset", "", "");
@@ -316,7 +316,7 @@ void Reverb402AudioProcessorEditor::mostrarDialogoGuardarPreset()
     }));
 }
 
-void Reverb402AudioProcessorEditor::ejecutarBorradoPreset()
+void Reverb402Component::ejecutarBorradoPreset()
 {
     int presetActual = audioProcessor.getCurrentProgram();
     if (audioProcessor.esPresetDeUsuario (presetActual))
@@ -346,4 +346,43 @@ void Reverb402AudioProcessorEditor::ejecutarBorradoPreset()
             })
         );
     }
+}
+
+WrappedReverb402AudioProcessorEditor::WrappedReverb402AudioProcessorEditor (Reverb402AudioProcessor& p) : AudioProcessorEditor (p), reverb402Component (p)
+{
+    addAndMakeVisible (reverb402Component);
+
+    PropertiesFile::Options options;
+    options.applicationName = ProjectInfo::projectName;
+    options.commonToAllUsers = true;
+    options.filenameSuffix = "settings";
+    options.osxLibrarySubFolder = "Application Support"; 
+    applicationProperties.setStorageParameters (options);
+
+    myConstrainer.setFixedAspectRatio (static_cast<double>(originalWidth) / static_cast<double>(originalHeight));
+    myConstrainer.setSizeLimits (688, 602, originalWidth, originalHeight);
+    setConstrainer (&myConstrainer);
+
+    setResizable (true, true);
+
+    auto sizeRatio { 1.0 };
+
+    if (auto* properties = applicationProperties.getCommonSettings(true))
+    {
+        sizeRatio = properties->getDoubleValue("sizeRatio", 1.0);
+    }
+
+    setSize (static_cast<int>(originalWidth * sizeRatio), static_cast<int>(originalHeight * sizeRatio));
+}
+
+void WrappedReverb402AudioProcessorEditor::resized()
+{
+    const auto scaleFactor = static_cast<float>(getWidth()) / originalWidth;
+    if (auto* properties = applicationProperties.getCommonSettings (true))
+    {
+        properties->setValue("sizeRatio", scaleFactor);
+    }
+
+    reverb402Component.setTransform (AffineTransform::scale(scaleFactor));
+    reverb402Component.setBounds (0.0f, 0.0f, originalWidth, originalHeight);
 }
