@@ -69,7 +69,7 @@ Estilo402::Estilo402()
         g.setFont (font);
 
         auto alpha = button.isEnabled() ? 1.0f : 0.5f;
-        g.setColour (button.findColour (juce::Label::textColourId).withMultipliedAlpha (alpha));
+        g.setColour (button.findColour (juce::ComboBox::textColourId).withMultipliedAlpha (alpha));
 
         g.drawFittedText (button.getButtonText(), area.getSmallestIntegerContainer(), juce::Justification::centred, 2);
     }

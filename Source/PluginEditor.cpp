@@ -55,9 +55,6 @@ Reverb402AudioProcessorEditor::Reverb402AudioProcessorEditor (Reverb402AudioProc
     for (int i = 0; i < nombresIR.size(); ++i)
         comboIR.addItem (nombresIR[i], i + 1);
 
-    int idInicial = static_cast<int>(audioProcessor.obtenerAPVTS().getRawParameterValue("ir_select")->load()) + 1;
-    comboIR.setSelectedId(idInicial, juce::dontSendNotification);
-
     attachmentPreDelay = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "predelay", sliderPreDelay);
     attachmentDecay = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "decay", sliderDecay);
     attachmentHPF = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "hpf", sliderHPF);

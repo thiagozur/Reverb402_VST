@@ -122,9 +122,7 @@ juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
 {
     auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
 
-    juce::File carpetaIR = appData.getChildFile("UNTREF")
-                                  .getChildFile("Reverb402")
-                                  .getChildFile("IR");
+    juce::File carpetaIR = appData.getChildFile("UNTREF").getChildFile("Reverb402").getChildFile("IR");
 
     if (! carpetaIR.isDirectory())
     {
@@ -133,15 +131,15 @@ juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
 
     switch (indice)
     {
-        case 0: return carpetaIR.getChildFile ("Alumno_izquierda.wav");
-        case 1: return carpetaIR.getChildFile ("Alumno_derecha.wav");
-        case 2: return carpetaIR.getChildFile ("Alumno_wide.wav");
-        case 3: return carpetaIR.getChildFile ("Alumno_wide_(prealigned).wav");
-        case 4: return carpetaIR.getChildFile ("Profesor_izquierda.wav");
-        case 5: return carpetaIR.getChildFile ("Profesor_derecha.wav");
-        case 6: return carpetaIR.getChildFile ("Profesor_wide.wav");
-        case 7: return carpetaIR.getChildFile ("Profesor_wide_(prealigned).wav");
-        default: return carpetaIR.getChildFile ("Alumno_izquierda.wav");
+        case 0: return carpetaIR.getChildFile ("1_Alumno_izquierda.wav");
+        case 1: return carpetaIR.getChildFile ("2_Alumno_derecha.wav");
+        case 2: return carpetaIR.getChildFile ("3_Alumno_wide.wav");
+        case 3: return carpetaIR.getChildFile ("4_Alumno_wide_(prealigned).wav");
+        case 4: return carpetaIR.getChildFile ("5_Profesor_izquierda.wav");
+        case 5: return carpetaIR.getChildFile ("6_Profesor_derecha.wav");
+        case 6: return carpetaIR.getChildFile ("7_Profesor_wide.wav");
+        case 7: return carpetaIR.getChildFile ("8_Profesor_wide_(prealigned).wav");
+        default: return carpetaIR.getChildFile ("1_Alumno_izquierda.wav");
     }
 }
 
@@ -242,7 +240,6 @@ juce::AudioBuffer<float> Reverb402AudioProcessor::cargarArchivoIRSeguro (const j
                 factorUmbral = juce::jlimit (0.0005f, 0.05f, factorUmbral);
                 float umbral = factorUmbral * valorMaxAbs;
 
-                //float umbral = 0.00316f * valorMaxAbs;
                 int ultimoIndiceSobreUmbral = -1;
                 
                 for (int i = 0; i < muestrasRecortadasAlInicio; ++i)

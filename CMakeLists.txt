@@ -22,8 +22,12 @@ juce_add_plugin(Reverb402
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     IS_MIDI_EFFECT FALSE
-    FORMATS VST3 Standalone
+    FORMATS VST3 Standalone AU
     PRODUCT_NAME "Reverb402"
+    PLUGIN_CODE "R402"
+    PLUGIN_MANUFACTURER_CODE "UNTF"
+    BUNDLE_ID "com.untref.reverb402"
+    VERSION "1.0.0"
 )
 
 target_sources(Reverb402 PRIVATE

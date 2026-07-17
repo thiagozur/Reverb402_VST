@@ -27,8 +27,8 @@ private:
 
     IRVisualizerContainer visualizadorIR;
 
-    juce::TextButton btnPresetAnterior { "<" };
-    juce::TextButton btnPresetSiguiente { ">" };
+    juce::TextButton btnPresetAnterior { juce::String::fromUTF8 ("\xE2\x97\x80") };
+    juce::TextButton btnPresetSiguiente { juce::String::fromUTF8 ("\xE2\x96\xB6") };
     juce::ComboBox comboPresets;
 
     std::unique_ptr<juce::AlertWindow> cwRelease;
