@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "EstiloPushBtn.h"
 
 class IRWaveformPlot : public juce::Component, public juce::Timer
 {
@@ -54,6 +55,12 @@ class IRVisualizerContainer : public juce::Component
 public:
     IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p), spectrogramPlot (p)
     {
+        btnWaveform.setLookAndFeel (&estiloPushBtn);
+        btnWaveform.setColour(EstiloPushBtn::colorLedActivoID, juce::Colour (0xFF00A0D2));
+
+        btnSpectrogram.setLookAndFeel (&estiloPushBtn);
+        btnSpectrogram.setColour(EstiloPushBtn::colorLedActivoID, juce::Colour (0xFF4D9823));
+
         btnWaveform.setButtonText ("Forma de Onda");
         btnWaveform.setRadioGroupId (1234);
         btnWaveform.setClickingTogglesState (true);
@@ -73,6 +80,12 @@ public:
         actualizarGraficos();
     }
 
+    ~IRVisualizerContainer() override
+    {
+        btnWaveform.setLookAndFeel (nullptr);
+        btnSpectrogram.setLookAndFeel (nullptr);
+    }
+
     void paint (juce::Graphics& g) override
     {
         g.fillAll (juce::Colours::transparentBlack);
@@ -81,11 +94,26 @@ public:
     void resized() override
     {
         auto bounds = getLocalBounds();
-        auto areaBotones = bounds.removeFromTop (30);
-        btnWaveform.setBounds (areaBotones.removeFromLeft (120).reduced (2));
-        btnSpectrogram.setBounds (areaBotones.removeFromLeft (120).reduced (2));
-
-        auto areaGrafico = bounds.reduced (20);
+    
+        int margenLateral = 20;
+        int margenInferior = 20;
+        int altoBoton = 24;
+        int espacioBotonesGrafico = 10;
+        
+        auto areaDisponible = bounds.reduced (margenLateral, 0);
+        areaDisponible.removeFromBottom (margenInferior);
+        
+        areaDisponible.removeFromTop (8); 
+        auto areaParaBotones = areaDisponible.removeFromTop (altoBoton);
+        
+        int anchoBoton = 110;
+        int espacioEntreBotones = 6;
+        
+        btnWaveform.setBounds (areaParaBotones.getX(), areaParaBotones.getY(), anchoBoton, altoBoton);
+        btnSpectrogram.setBounds (areaParaBotones.getX() + anchoBoton + espacioEntreBotones, areaParaBotones.getY(), anchoBoton, altoBoton);
+        
+        auto areaGrafico = areaDisponible.withTrimmedTop (espacioBotonesGrafico);
+        
         waveformPlot.setBounds (areaGrafico);
         spectrogramPlot.setBounds (areaGrafico);
     }
@@ -98,6 +126,8 @@ public:
 
 private:
     Reverb402AudioProcessor& processor;
+
+    EstiloPushBtn estiloPushBtn;
 
     juce::TextButton btnWaveform;
     juce::TextButton btnSpectrogram;
