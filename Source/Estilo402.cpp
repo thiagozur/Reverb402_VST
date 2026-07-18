@@ -9,7 +9,7 @@ Estilo402::Estilo402()
         setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xFF111113));
         setColour (juce::ComboBox::outlineColourId, juce::Colour (0xFF535660));
         setColour (juce::ComboBox::focusedOutlineColourId, juce::Colour (0xFF00A0D2));
-        setColour (juce::ComboBox::arrowColourId, juce::Colour (0xFF00A0D2));
+        setColour (juce::ComboBox::arrowColourId, juce::Colours::white.withAlpha (0.9f));
         setColour (juce::ComboBox::textColourId, juce::Colours::white.withAlpha (0.9f));
 
         setColour (juce::TextButton::buttonColourId, juce::Colour (0xFF111113));

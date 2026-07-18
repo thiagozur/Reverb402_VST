@@ -1,3 +1,6 @@
 build/
 .vscode/
-IR_cut/
+Resources/IR_cut/
+Reverb402_installer.iss
+Output/
+GitHub_releases/

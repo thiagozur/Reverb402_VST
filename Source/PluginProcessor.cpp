@@ -120,7 +120,7 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
 juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
 {
-    auto appData = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+    auto appData = juce::File::getSpecialLocation (juce::File::commonApplicationDataDirectory);
 
     juce::File carpetaIR = appData.getChildFile("UNTREF").getChildFile("Reverb402").getChildFile("IR");
 
