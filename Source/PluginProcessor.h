@@ -57,9 +57,14 @@ public:
     std::vector<Preset> listaCompletaPresets;
     const std::vector<Preset> presetsDeFabrica = {
     { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
-    { "Testfull", 1.0f, 5.0f, 150.0f, 20.0f, 20000.0f, 0, false, {}},
+    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 250.0f, 20000.0f, 2, false, {}},
+    { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}},
+    { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}},
     };
     
+    void conmutarEstadoAB (bool usarEstadoB);
+    bool esModoBActivo() const {return modoBActivo; }
+    void sincronizarSlotActivo();
 
 private:
     juce::dsp::ProcessSpec spec;
@@ -124,7 +129,8 @@ private:
     };
 
     int ultimaIrCargada = -1;
-    int programaActual = 0;
+    int programaActualA = 0;
+    int programaActualB = 0;
 
     juce::File obtenerArchivoIRFijo (int indice);
 
@@ -132,6 +138,12 @@ private:
     
     juce::AudioProcessorValueTreeState listaParametros;
     juce::AudioProcessorValueTreeState::ParameterLayout crearLayoutParametros();
+
+    juce::ValueTree estadoA;
+    juce::ValueTree estadoB;
+
+    bool modoBActivo = false;
+    bool estadoBInicializado = false;
 
     juce::ThreadPool hiloDeFondo { 1 };
     juce::CriticalSection cerrojoIR;

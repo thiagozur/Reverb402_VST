@@ -5,7 +5,12 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
 {
     setLookAndFeel (&estilo402);
 
+    auto orbitronTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::OrbitronBlack_ttf, BinaryData::OrbitronBlack_ttfSize);
+    orbitron = juce::Font(orbitronTypeface);
+    orbitron.setHeight (30.0f);
+
     addAndMakeVisible (visualizadorIR);
+    visualizadorIR.onABToggled = [this] { actualizarMenuPresets();  };
 
     addAndMakeVisible (btnPresetAnterior);
     btnPresetAnterior.onClick = [this] { cambiarPresetRelativo (-1); };
@@ -91,22 +96,11 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     sliderLPF.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass"); };
     sliderMix.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderMix, lblMix, "Mix"); };
 
-    comboPresets.onChange = [this] { visualizadorIR.actualizarGraficos(); };
-    comboIR.onChange = [this] { visualizadorIR.actualizarGraficos(); };
-    sliderDecay.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
-    sliderDecay.addMouseListener(this, false);
-    sliderHPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
-    sliderHPF.addMouseListener(this, false);
-    sliderLPF.onDragEnd = [this] { visualizadorIR.actualizarGraficos(); };
-    sliderLPF.addMouseListener(this, false);
-
     actualizarTextoLabel (sliderPreDelay, lblPreDelay, "Pre-Delay");
     actualizarTextoLabel (sliderDecay, lblDecay, "Decay");
     actualizarTextoLabel (sliderHPF, lblHPF, "High-Pass");
     actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass");
     actualizarTextoLabel (sliderMix, lblMix, "Mix");
-
-    //setSize (800, 700);
 }
 
 Reverb402Component::~Reverb402Component()
@@ -161,6 +155,16 @@ void Reverb402Component::paint (juce::Graphics& g)
     g.drawHorizontalLine (areaSuperior.getBottom(), 0.0f, static_cast<float>(getWidth()));
     g.setColour (juce::Colours::white);
     g.drawHorizontalLine (areaBorde.getBottom(), 0.0f, static_cast<float>(getWidth()));
+
+    g.setFont (orbitron);
+    g.setColour (juce::Colour (0xFF1F2024));
+
+    int logoXPos = areaInferior.getX() + 20;
+    int logoYPos = areaInferior.getY() + 20;
+    int logoWidth = 300;
+    int logoHeight = 40;
+
+    g.drawText ("Reverb402", logoXPos, logoYPos, logoWidth, logoHeight, juce::Justification::topLeft);
 }
 
 void Reverb402Component::resized ()

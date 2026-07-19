@@ -1,6 +1,7 @@
 build/
 .vscode/
 Resources/IR_cut/
+Resources/Fonts/
 Reverb402_installer.iss
 Output/
 GitHub_releases/

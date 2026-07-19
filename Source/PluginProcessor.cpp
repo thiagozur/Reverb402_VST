@@ -18,6 +18,9 @@ Reverb402AudioProcessor::Reverb402AudioProcessor()
     paramIRSelection = listaParametros.getRawParameterValue("ir_select");
 
     actualizarListaPresets();
+
+    estadoA = listaParametros.copyState();
+    estadoB = listaParametros.copyState();
 }
 
 Reverb402AudioProcessor::~Reverb402AudioProcessor() {}
@@ -75,6 +78,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
         "Respuesta al Impulso",
         nombresIRs,
         0
+    ));
+
+    layout.add(std::make_unique<juce::AudioParameterBool> (
+    juce::ParameterID {"btnAB", 1},
+    "Botón A/B",
+    false
     ));
     
     return layout;
@@ -651,7 +660,7 @@ int Reverb402AudioProcessor::getNumPrograms()
 
 int Reverb402AudioProcessor::getCurrentProgram()
 {
-    return programaActual;
+    return modoBActivo ? programaActualB : programaActualA;
 }
 
 void Reverb402AudioProcessor::setCurrentProgram (int index)
@@ -659,7 +668,10 @@ void Reverb402AudioProcessor::setCurrentProgram (int index)
     if (index < 0 || index >= getNumPrograms())
         return;
     
-    programaActual = index;
+    if (modoBActivo)
+        programaActualB = index;
+    else
+        programaActualA = index;
     const auto& preset = listaCompletaPresets[index];
 
     if (auto* pMix = listaParametros.getParameter("mix"))
@@ -792,20 +804,99 @@ juce::AudioProcessorEditor* Reverb402AudioProcessor::createEditor()
 
 void Reverb402AudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    auto estado = listaParametros.copyState();
-    std::unique_ptr<juce::XmlElement> xml (estado.createXml());
-    copyXmlToBinary(*xml, destData);
+    sincronizarSlotActivo();
+
+    juce::ValueTree estadoAConNombre ("EstadoA");
+    estadoAConNombre.copyPropertiesAndChildrenFrom (estadoA, nullptr);
+
+    juce::ValueTree estadoBConNombre ("EstadoB");
+    estadoBConNombre.copyPropertiesAndChildrenFrom (estadoB, nullptr);
+
+    juce::ValueTree estadoCompleto ("Reverb402EstadoCompleto");
+    estadoCompleto.setProperty ("modoBActivo", modoBActivo, nullptr);
+    estadoCompleto.setProperty ("programaActualA", programaActualA, nullptr);
+    estadoCompleto.setProperty ("programaActualB", programaActualB, nullptr);
+    estadoCompleto.appendChild (estadoAConNombre, nullptr);
+    estadoCompleto.appendChild (estadoBConNombre, nullptr);
+
+    std::unique_ptr<juce::XmlElement> xml (estadoCompleto.createXml());
+    copyXmlToBinary (*xml, destData);
 }
 
 void Reverb402AudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlEstado (getXmlFromBinary (data, sizeInBytes));
 
-    if (xmlEstado != nullptr)
+    if (xmlEstado == nullptr)
+        return;
+
+    if (xmlEstado->hasTagName (listaParametros.state.getType()))
     {
-        if (xmlEstado->hasTagName (listaParametros.state.getType()))
-            listaParametros.replaceState (juce::ValueTree::fromXml (*xmlEstado));
+        listaParametros.replaceState (juce::ValueTree::fromXml (*xmlEstado));
+        estadoA = listaParametros.copyState();
+        estadoB = listaParametros.copyState();
+        modoBActivo = false;
+        programaActualA = 0;
+        programaActualB = 0;
+        return;
     }
+
+    if (! xmlEstado->hasTagName ("Reverb402EstadoCompleto"))
+        return;
+
+    juce::ValueTree estadoCompleto = juce::ValueTree::fromXml (*xmlEstado);
+
+    modoBActivo    = static_cast<bool> (estadoCompleto.getProperty ("modoBActivo", false));
+    programaActualA = static_cast<int>  (estadoCompleto.getProperty ("programaActualA", 0));
+    programaActualB = static_cast<int>  (estadoCompleto.getProperty ("programaActualB", 0));
+
+    auto hijoEstadoA = estadoCompleto.getChildWithName ("EstadoA");
+    auto hijoEstadoB = estadoCompleto.getChildWithName ("EstadoB");
+
+    if (hijoEstadoA.isValid())
+    {
+        estadoA = juce::ValueTree (listaParametros.state.getType());
+        estadoA.copyPropertiesAndChildrenFrom (hijoEstadoA, nullptr);
+    }
+
+    if (hijoEstadoB.isValid())
+    {
+        estadoB = juce::ValueTree (listaParametros.state.getType());
+        estadoB.copyPropertiesAndChildrenFrom (hijoEstadoB, nullptr);
+    }
+
+    listaParametros.replaceState (modoBActivo ? estadoB : estadoA);
+
+    if (auto* param = listaParametros.getParameter ("btnAB"))
+        param->setValueNotifyingHost (modoBActivo ? 1.0f : 0.0f);
+}
+
+void Reverb402AudioProcessor::conmutarEstadoAB (bool usarEstadoB)
+{
+    if (modoBActivo == usarEstadoB)
+        return;
+
+    juce::ValueTree estadoActual = listaParametros.copyState();
+
+    if (modoBActivo)
+        estadoB = estadoActual;
+    else
+        estadoA = estadoActual;
+
+    modoBActivo = usarEstadoB;
+
+    listaParametros.replaceState (modoBActivo ? estadoB : estadoA);
+
+    if (auto* param = listaParametros.getParameter ("btnAB"))
+        param->setValueNotifyingHost (modoBActivo ? 1.0f : 0.0f);
+}
+
+void Reverb402AudioProcessor::sincronizarSlotActivo()
+{
+    if (modoBActivo)
+        estadoB = listaParametros.copyState();
+    else
+        estadoA = listaParametros.copyState();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

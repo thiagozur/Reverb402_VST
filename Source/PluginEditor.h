@@ -27,6 +27,8 @@ private:
 
     IRVisualizerContainer visualizadorIR;
 
+    juce::Font orbitron;
+
     juce::TextButton btnPresetAnterior { juce::String::fromUTF8 ("\xE2\x97\x80") };
     juce::TextButton btnPresetSiguiente { juce::String::fromUTF8 ("\xE2\x96\xB6") };
     juce::ComboBox comboPresets;

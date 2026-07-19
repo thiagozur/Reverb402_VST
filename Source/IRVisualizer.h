@@ -50,10 +50,32 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IRSpectrogramPlot)
 };
 
+class FiltersPlot : public juce::Component, public juce::Timer
+{
+public:
+    FiltersPlot (Reverb402AudioProcessor& p);
+    ~FiltersPlot() override;
+
+    void paint (juce::Graphics& g) override;
+    void actualizarFiltros();
+    void timerCallback() override;
+    void visibilityChanged() override;
+
+private:
+    Reverb402AudioProcessor& processor;
+
+    float freqHPFActual = 20.0f;
+    float freqLPFActual = 20000.0f;
+    juce::Path caminoHPF;
+    juce::Path caminoLPF;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FiltersPlot)
+};
+
 class IRVisualizerContainer : public juce::Component
 {
 public:
-    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p), spectrogramPlot (p)
+    IRVisualizerContainer (Reverb402AudioProcessor& p) : processor (p), waveformPlot (p), spectrogramPlot (p), filtersPlot (p)
     {
         btnWaveform.setLookAndFeel (&estiloPushBtn);
         btnWaveform.setColour(EstiloPushBtn::colorLedActivoID, juce::Colour (0xFF00A0D2));
@@ -61,23 +83,52 @@ public:
         btnSpectrogram.setLookAndFeel (&estiloPushBtn);
         btnSpectrogram.setColour(EstiloPushBtn::colorLedActivoID, juce::Colour (0xFF4D9823));
 
+        btnFilters.setLookAndFeel (&estiloPushBtn);
+        btnFilters.setColour(EstiloPushBtn::colorLedActivoID, juce::Colour (0xFFFC3172));
+
+        btnAB.setLookAndFeel (&estiloPushBtn);
+        btnAB.setColour(EstiloPushBtn::colorLedActivoID, juce::Colours::white);
+
         btnWaveform.setButtonText ("Forma de Onda");
         btnWaveform.setRadioGroupId (1234);
         btnWaveform.setClickingTogglesState (true);
         btnWaveform.setToggleState (true, juce::dontSendNotification);
-        btnWaveform.onClick = [this] { mostrarPestana (true); };
+        btnWaveform.onClick = [this] { mostrarGrafico (0); };
         addAndMakeVisible (btnWaveform);
 
         btnSpectrogram.setButtonText ("Espectro");
         btnSpectrogram.setRadioGroupId (1234);
         btnSpectrogram.setClickingTogglesState (true);
-        btnSpectrogram.onClick = [this] {mostrarPestana (false); };
+        btnSpectrogram.onClick = [this] {mostrarGrafico (1); };
         addAndMakeVisible (btnSpectrogram);
+
+        btnFilters.setButtonText ("Filtros");
+        btnFilters.setRadioGroupId (1234);
+        btnFilters.setClickingTogglesState (true);
+        btnFilters.onClick = [this] {mostrarGrafico (2); };
+        addAndMakeVisible (btnFilters);
+
+        btnAB.setButtonText ("A/B");
+        btnAB.setToggleState(processor.esModoBActivo(), juce::dontSendNotification);
+        btnAB.setClickingTogglesState(true);
+
+        btnAB.onClick = [this]()
+        {
+            processor.conmutarEstadoAB(btnAB.getToggleState());
+            actualizarGraficos();
+
+            if (onABToggled)
+                onABToggled();
+        };
+
+        addAndMakeVisible (btnAB);
 
         addAndMakeVisible (waveformPlot);
         addChildComponent (spectrogramPlot);
+        addChildComponent (filtersPlot);
         
         actualizarGraficos();
+        waveformPlot.startTimerHz (25);
     }
 
     ~IRVisualizerContainer() override
@@ -111,18 +162,24 @@ public:
         
         btnWaveform.setBounds (areaParaBotones.getX(), areaParaBotones.getY(), anchoBoton, altoBoton);
         btnSpectrogram.setBounds (areaParaBotones.getX() + anchoBoton + espacioEntreBotones, areaParaBotones.getY(), anchoBoton, altoBoton);
+        btnFilters.setBounds (areaParaBotones.getX() + 2 * anchoBoton + 2 * espacioEntreBotones, areaParaBotones.getY(), anchoBoton, altoBoton);
+        btnAB.setBounds (getWidth() - 60 - margenLateral, areaParaBotones.getY(), 60, altoBoton);
         
         auto areaGrafico = areaDisponible.withTrimmedTop (espacioBotonesGrafico);
         
         waveformPlot.setBounds (areaGrafico);
         spectrogramPlot.setBounds (areaGrafico);
+        filtersPlot.setBounds (areaGrafico);
     }
 
     void actualizarGraficos()
     {
         waveformPlot.actualizarOnda();
         spectrogramPlot.actualizarEspectrograma();
+        filtersPlot.actualizarFiltros();
     }
+
+    std::function<void()> onABToggled;
 
 private:
     Reverb402AudioProcessor& processor;
@@ -131,14 +188,18 @@ private:
 
     juce::TextButton btnWaveform;
     juce::TextButton btnSpectrogram;
+    juce::TextButton btnFilters;
+    juce::TextButton btnAB;
 
     IRWaveformPlot waveformPlot;
     IRSpectrogramPlot spectrogramPlot;
+    FiltersPlot filtersPlot;
 
-    void mostrarPestana (bool verWaveform)
+    void mostrarGrafico (int indiceGrafico)
     {
-        waveformPlot.setVisible (verWaveform);
-        spectrogramPlot.setVisible (!verWaveform);
+        waveformPlot.setVisible (indiceGrafico == 0);
+        spectrogramPlot.setVisible (indiceGrafico == 1);
+        filtersPlot.setVisible (indiceGrafico == 2);
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IRVisualizerContainer)

@@ -38,11 +38,17 @@ target_sources(Reverb402 PRIVATE
     Source/EstiloPushBtn.cpp
 )
 
+juce_add_binary_data(Reverb402_resources
+    SOURCES
+        Resources/Fonts/Orbitron/static/Orbitron-Black.ttf
+)
+
 target_link_libraries(Reverb402 PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
     juce::juce_gui_extra
     juce::juce_audio_plugin_client
+    Reverb402_resources
 )
 
 juce_generate_juce_header(Reverb402)
