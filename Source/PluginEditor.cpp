@@ -1,16 +1,23 @@
 ﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProcessor (p), visualizadorIR (p)
+Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProcessor (p), visualizadorIR (p), medidorNivelInL ([&]() { return audioProcessor.obtenerRMSIn (0); }), medidorNivelInR ([&]() { return audioProcessor.obtenerRMSIn (1); }), medidorNivelOutL ([&]() { return audioProcessor.obtenerRMSOut (0); }), medidorNivelOutR ([&]() { return audioProcessor.obtenerRMSOut (1); })
 {
     setLookAndFeel (&estilo402);
 
     auto orbitronTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::OrbitronBlack_ttf, BinaryData::OrbitronBlack_ttfSize);
     orbitron = juce::Font(orbitronTypeface);
     orbitron.setHeight (30.0f);
+    
+    fondoSideCompleto = juce::ImageCache::getFromMemory (BinaryData::metal1_jpg, BinaryData::metal1_jpgSize);
 
     addAndMakeVisible (visualizadorIR);
     visualizadorIR.onABToggled = [this] { actualizarMenuPresets();  };
+
+    addAndMakeVisible (medidorNivelInL);
+    addAndMakeVisible (medidorNivelInR);
+    addAndMakeVisible (medidorNivelOutL);
+    addAndMakeVisible (medidorNivelOutR);
 
     addAndMakeVisible (btnPresetAnterior);
     btnPresetAnterior.onClick = [this] { cambiarPresetRelativo (-1); };
@@ -110,9 +117,18 @@ Reverb402Component::~Reverb402Component()
 
 void Reverb402Component::paint (juce::Graphics& g)
 {
-    auto bounds = getLocalBounds();
+    auto frameBounds = getLocalBounds();
+    auto areaMenuPresets = frameBounds.removeFromTop (45);
+    auto leftSidebarBounds = frameBounds.removeFromLeft(90);
+    auto bounds = frameBounds.removeFromLeft(800);
+    auto rightSidebarBounds = frameBounds;
 
-    auto areaMenuPresets = bounds.removeFromTop (45);
+    if (fondoSide.isValid())
+    {
+        g.drawImageAt (fondoSide, leftSidebarBounds.getX(), leftSidebarBounds.getY());
+        g.drawImageAt (fondoSide, rightSidebarBounds.getX(), rightSidebarBounds.getY());
+    }
+    
     auto areaSuperior = bounds.removeFromTop (305);
     auto areaBorde = bounds.removeFromTop (10);
     auto areaInferior = bounds;
@@ -121,7 +137,7 @@ void Reverb402Component::paint (juce::Graphics& g)
     g.fillRect (areaMenuPresets);
 
     g.setColour (juce::Colours::white.withAlpha (0.1f));
-    g.drawHorizontalLine (areaMenuPresets.getBottom() - 1, 0.0f,  areaMenuPresets.getWidth());
+    g.drawHorizontalLine (areaMenuPresets.getBottom() - 1, areaMenuPresets.getX(),  areaMenuPresets.getWidth());
 
     juce::ColourGradient shadeSuperior;
     shadeSuperior.isRadial = false;
@@ -152,9 +168,9 @@ void Reverb402Component::paint (juce::Graphics& g)
     g.fillRect (areaInferior);
 
     g.setColour (juce::Colour (0xFF2D2D34).withAlpha (0.3f));
-    g.drawHorizontalLine (areaSuperior.getBottom(), 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine (areaSuperior.getBottom(), areaSuperior.getX(), static_cast<float>(areaSuperior.getWidth() + leftSidebarBounds.getWidth()));
     g.setColour (juce::Colours::white);
-    g.drawHorizontalLine (areaBorde.getBottom(), 0.0f, static_cast<float>(getWidth()));
+    g.drawHorizontalLine (areaBorde.getBottom(), leftSidebarBounds.getWidth(), static_cast<float>(areaBorde.getWidth() + leftSidebarBounds.getWidth()));
 
     g.setFont (orbitron);
     g.setColour (juce::Colour (0xFF1F2024));
@@ -169,9 +185,30 @@ void Reverb402Component::paint (juce::Graphics& g)
 
 void Reverb402Component::resized ()
 {
-    auto bounds = getLocalBounds();
+    auto frameBounds = getLocalBounds();
+    auto areaPresets = frameBounds.removeFromTop (45).reduced (10, 8);
+    auto leftSidebarBounds = frameBounds.removeFromLeft (90);
+    auto bounds = frameBounds.removeFromLeft (800);
+    auto rightSidebarBounds = frameBounds;
 
-    auto areaPresets = bounds.removeFromTop (45).reduced (10, 8);
+    if (fondoSideCompleto.isValid())
+    {
+        juce::Rectangle<int> zonaCorte (0, 0, leftSidebarBounds.getWidth(), leftSidebarBounds.getHeight());
+        fondoSide = fondoSideCompleto.getClippedImage (zonaCorte);
+    }
+
+    auto inMeterBounds = leftSidebarBounds.removeFromBottom (340).reduced (20);
+    auto outMeterBounds = rightSidebarBounds.removeFromBottom (340).reduced (20);
+
+    auto inMeterBoundsL = inMeterBounds.removeFromLeft (inMeterBounds.getWidth() / 2.0f);
+    auto inMeterBoundsR = inMeterBounds;
+    medidorNivelInL.setBounds (inMeterBoundsL);
+    medidorNivelInR.setBounds (inMeterBoundsR);
+
+    auto outMeterBoundsL = outMeterBounds.removeFromLeft (outMeterBounds.getWidth() / 2.0f);
+    auto outMeterBoundsR = outMeterBounds;
+    medidorNivelOutL.setBounds (outMeterBoundsL);
+    medidorNivelOutR.setBounds (outMeterBoundsR);
 
     int anchoFlecha = 30;
 

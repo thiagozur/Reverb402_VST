@@ -95,6 +95,16 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
 
+    rmsInL.reset (sampleRate, 0.5);
+    rmsInR.reset (sampleRate, 0.5);
+    rmsOutL.reset (sampleRate, 0.5);
+    rmsOutR.reset (sampleRate, 0.5);
+
+    rmsInL.setCurrentAndTargetValue (-100.0f);
+    rmsInR.setCurrentAndTargetValue (-100.0f);
+    rmsOutL.setCurrentAndTargetValue (-100.0f);
+    rmsOutR.setCurrentAndTargetValue (-100.0f);
+
     lineaPreDelay.prepare (spec);
     lineaPreDelay.setMaximumDelayInSamples (static_cast<int> (sampleRate));
 
@@ -393,6 +403,25 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (totalNumInputChannels == 0 || numMuestras == 0)
         return;
 
+    rmsInL.skip (numMuestras);
+    rmsInR.skip (numMuestras);
+
+    {
+        const auto valor = juce::Decibels::gainToDecibels(buffer.getRMSLevel(0, 0, numMuestras));
+        if (valor < rmsInL.getCurrentValue())
+            rmsInL.setTargetValue (valor);
+        else
+            rmsInL.setCurrentAndTargetValue (valor);
+    }
+    
+    {
+        const auto valor = juce::Decibels::gainToDecibels(buffer.getRMSLevel(1, 0, numMuestras));
+        if (valor < rmsInR.getCurrentValue())
+            rmsInR.setTargetValue (valor);
+        else
+            rmsInR.setCurrentAndTargetValue (valor);
+    }
+
     float valorMix = paramMix->load();
     float valorPreDelay = paramPreDelay->load();
     float valorHPF = paramHPF->load();
@@ -559,6 +588,27 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         }
         gananciaTransicion = gananciaRampa;
     }
+
+    rmsOutL.skip (numMuestras);
+    rmsOutR.skip (numMuestras);
+
+    {
+        const auto valor = juce::Decibels::gainToDecibels(buffer.getRMSLevel(0, 0, numMuestras));
+        if (valor < rmsOutL.getCurrentValue())
+            rmsOutL.setTargetValue (valor);
+        else
+            rmsOutL.setCurrentAndTargetValue (valor);
+    }
+    
+    if (totalNumOutputChannels > 1)
+    {
+        const auto valor = juce::Decibels::gainToDecibels(buffer.getRMSLevel(1, 0, numMuestras));
+        if (valor < rmsOutR.getCurrentValue())
+            rmsOutR.setTargetValue (valor);
+        else
+            rmsOutR.setCurrentAndTargetValue (valor);
+    }
+    
 }
 
 void Reverb402AudioProcessor::obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino)
@@ -641,6 +691,26 @@ float Reverb402AudioProcessor::obtenerMagnitudFiltros (double frecuencia)
     }
 
     return magnitudTotal;
+}
+
+float Reverb402AudioProcessor::obtenerRMSIn(const int canal) const
+{
+    if (canal == 0)
+        return rmsInL.getCurrentValue();
+    else if (canal == 1)
+        return rmsInR.getCurrentValue();
+    else
+        return 0.0f;
+}
+
+float Reverb402AudioProcessor::obtenerRMSOut(const int canal) const
+{
+    if (canal == 0)
+        return rmsOutL.getCurrentValue();
+    else if (canal == 1)
+        return rmsOutR.getCurrentValue();
+    else
+        return 0.0f;
 }
 
 void Reverb402AudioProcessor::releaseResources()

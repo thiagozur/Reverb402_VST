@@ -53,6 +53,8 @@ public:
     juce::StringArray obtenerNombresIR() const { return nombresIRs; }
     juce::AudioProcessorValueTreeState& obtenerAPVTS() { return listaParametros; }
     int getCantidadPresets() const { return static_cast<int>(listaCompletaPresets.size()); }
+    float obtenerRMSIn (const int canal) const;
+    float obtenerRMSOut (const int canal) const;
 
     std::vector<Preset> listaCompletaPresets;
     const std::vector<Preset> presetsDeFabrica = {
@@ -131,6 +133,11 @@ private:
     int ultimaIrCargada = -1;
     int programaActualA = 0;
     int programaActualB = 0;
+
+    juce::LinearSmoothedValue<float> rmsInL = -60.0f;
+    juce::LinearSmoothedValue<float> rmsInR = -60.0f;
+    juce::LinearSmoothedValue<float> rmsOutL = -60.0f;
+    juce::LinearSmoothedValue<float> rmsOutR = -60.0f;
 
     juce::File obtenerArchivoIRFijo (int indice);
 

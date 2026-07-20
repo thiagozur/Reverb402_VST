@@ -4,6 +4,7 @@
 #include "PluginProcessor.h"
 #include "IRVisualizer.h"
 #include "Estilo402.h"
+#include "MedidorNivel.h"
 
 class Reverb402Component : public juce::Component
 {
@@ -26,8 +27,14 @@ private:
     Estilo402 estilo402;
 
     IRVisualizerContainer visualizadorIR;
+    MedidorNivel medidorNivelInL;
+    MedidorNivel medidorNivelInR;
+    MedidorNivel medidorNivelOutL;
+    MedidorNivel medidorNivelOutR;
 
     juce::Font orbitron;
+    juce::Image fondoSideCompleto;
+    juce::Image fondoSide;
 
     juce::TextButton btnPresetAnterior { juce::String::fromUTF8 ("\xE2\x97\x80") };
     juce::TextButton btnPresetSiguiente { juce::String::fromUTF8 ("\xE2\x96\xB6") };
@@ -74,7 +81,7 @@ public:
     void resized() override;
 
 private:
-    static constexpr int originalWidth { 800 };
+    static constexpr int originalWidth { 980 };
     static constexpr int originalHeight { 700 };
 
     juce::ComponentBoundsConstrainer myConstrainer;
