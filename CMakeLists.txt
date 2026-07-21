@@ -33,20 +33,19 @@ juce_add_plugin(Reverb402
 target_sources(Reverb402 PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/IRVisualizer.cpp
-    Source/Estilo402.cpp
-    Source/EstiloPushBtn.cpp
-    Source/MedidorNivel.cpp
+    Source/Componentes/IRVisualizer.cpp
+    Source/Componentes/MedidorNivel.cpp
     Source/Componentes/EscalaDb.cpp
+    Source/Estilos/Estilo402.cpp
+    Source/Estilos/EstiloPushBtn.cpp
+    Source/Estilos/EstiloKnobGain.cpp
 )
 
 juce_add_binary_data(Reverb402_resources
     SOURCES
         Resources/Fonts/Orbitron/static/Orbitron-Black.ttf
+        Resources/Fonts/Orbitron/static/Orbitron-Medium.ttf
         Resources/Fonts/Chivo_Mono/static/ChivoMono-SemiBold.ttf
-        Resources/Textures/madera1.jpg
-        Resources/Textures/metal1.jpg
-        Resources/Textures/metal2.jpg
         Resources/Textures/aluminio.jpg
 )
 

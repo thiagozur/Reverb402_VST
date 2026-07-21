@@ -59,7 +59,7 @@ public:
     std::vector<Preset> listaCompletaPresets;
     const std::vector<Preset> presetsDeFabrica = {
     { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
-    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 250.0f, 20000.0f, 2, false, {}},
+    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 350.0f, 20000.0f, 2, false, {}},
     { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}},
     { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}},
     };
@@ -118,6 +118,7 @@ private:
     std::atomic<float>* paramLPF = nullptr;
     std::atomic<float>* paramPreDelay = nullptr;
     std::atomic<float>* paramIRSelection = nullptr;
+    std::atomic<float>* paramInputGain = nullptr;
 
     juce::StringArray nombresIRs {
         "IR 1 - Alumno Izquierda",

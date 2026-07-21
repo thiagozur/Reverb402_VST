@@ -16,6 +16,7 @@ Reverb402AudioProcessor::Reverb402AudioProcessor()
     paramLPF = listaParametros.getRawParameterValue("lpf");
     paramPreDelay = listaParametros.getRawParameterValue("predelay");
     paramIRSelection = listaParametros.getRawParameterValue("ir_select");
+    paramInputGain = listaParametros.getRawParameterValue("inputGain");
 
     actualizarListaPresets();
 
@@ -81,23 +82,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
     ));
 
     layout.add(std::make_unique<juce::AudioParameterBool> (
-    juce::ParameterID {"btnAB", 1},
-    "Botón A/B",
-    false
+        juce::ParameterID {"btnAB", 1},
+        "Botón A/B",
+        false
     ));
 
-    /* layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID {
-            "inpuGain",
-            1
-        },
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "inputGain", 1 },
         "Input Gain",
-        juce::NormalisableRange<float> (-24.0f, 12.0f, 0.1f, 1.0f),
+        juce::NormalisableRange<float> (-12.0f, 12.0f, 0.1f, 1.0f),
         0.0f,
-        juce::String(),
-        juce::AudioProcessorParameter::genericParameter,
-        [] (float valor, int) { return juce::String (valor, 1) + " dB"; }
-    )); */
+        juce::AudioParameterFloatAttributes().withStringFromValueFunction (
+            [](float value, int) { return juce::String (value, 1) + " dB"; }
+        )
+    ));
     
     return layout;
 }
@@ -416,10 +414,10 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (totalNumInputChannels == 0 || numMuestras == 0)
         return;
 
-    /* auto inputGainDb = listaParametros.getRawParameterValue ("inputGain")->load();
+    auto inputGainDb = paramInputGain->load();
     auto inputGainLineal = juce::Decibels::decibelsToGain (inputGainDb);
 
-    buffer.applyGain (inputGainLineal); */
+    buffer.applyGain (inputGainLineal);
 
     rmsInL.skip (numMuestras);
     rmsInR.skip (numMuestras);

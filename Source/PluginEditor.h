@@ -2,9 +2,10 @@
 
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
-#include "IRVisualizer.h"
-#include "Estilo402.h"
-#include "MedidorNivel.h"
+#include "Componentes/IRVisualizer.h"
+#include "Estilos/Estilo402.h"
+#include "Estilos/EstiloKnobGain.h"
+#include "Componentes/MedidorNivel.h"
 #include "Componentes/EscalaDb.h"
 
 class Reverb402Component : public juce::Component
@@ -26,6 +27,7 @@ private:
     Reverb402AudioProcessor& audioProcessor;
 
     Estilo402 estilo402;
+    EstiloKnobGain estiloKnobGain;
 
     IRVisualizerContainer visualizadorIR;
     MedidorNivel medidorNivelInL;
@@ -36,6 +38,7 @@ private:
     MedidorNivel medidorNivelOutR;
 
     juce::Font orbitron;
+    juce::Font orbitronMed;
     juce::Image fondoSideCompleto;
     juce::Image fondoSide;
 
@@ -50,12 +53,14 @@ private:
     juce::Slider sliderHPF;
     juce::Slider sliderLPF;
     juce::Slider sliderMix;
+    juce::Slider sliderInputGain;
 
     juce::Label lblPreDelay { {}, "Pre-Delay" };
     juce::Label lblDecay { {}, "Decay" };
     juce::Label lblHPF { {}, "High-Pass" };
     juce::Label lblLPF { {}, "Low-Pass" };
     juce::Label lblMix { {}, "Mix" };
+    juce::Label lblInputGain { {}, "In Gain" };
 
     juce::ComboBox comboIR;
 
@@ -67,6 +72,7 @@ private:
     std::unique_ptr<SliderAttachment> attachmentHPF;
     std::unique_ptr<SliderAttachment> attachmentLPF;
     std::unique_ptr<SliderAttachment> attachmentMix;
+    std::unique_ptr<SliderAttachment> attachmentInputGain;
     std::unique_ptr<ComboBoxAttachment> attachmentIR;
 
     void actualizarMenuPresets();

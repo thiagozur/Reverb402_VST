@@ -102,9 +102,9 @@ Estilo402::Estilo402()
         float radioSombra = radioDial + 0.2f * radioDial;
 
         float sombraCentroX = centroX;
-        float sombraCentroY = centroY + 0.2f * radioDial;
+        float sombraCentroY = centroY + 0.1f * radioDial;
 
-        juce::ColourGradient gradienteSombra (juce::Colours::black.withAlpha (0.65f), sombraCentroX, sombraCentroY, juce::Colours::transparentBlack, sombraCentroX + radioSombra, sombraCentroY, true);
+        juce::ColourGradient gradienteSombra (juce::Colours::black.withAlpha (0.75f), sombraCentroX, sombraCentroY, juce::Colours::transparentBlack, sombraCentroX + radioSombra, sombraCentroY, true);
 
         g.setGradientFill (gradienteSombra);
         g.fillEllipse (sombraCentroX - radioSombra, sombraCentroY - radioSombra, radioSombra * 2.0f, radioSombra * 2.0f);

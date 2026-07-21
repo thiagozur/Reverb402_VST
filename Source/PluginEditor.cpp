@@ -8,6 +8,10 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     auto orbitronTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::OrbitronBlack_ttf, BinaryData::OrbitronBlack_ttfSize);
     orbitron = juce::Font (orbitronTypeface);
     orbitron.setHeight (30.0f);
+
+    auto orbitronMedTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::OrbitronMedium_ttf, BinaryData::OrbitronMedium_ttfSize);
+    orbitronMed = juce::Font (orbitronMedTypeface);
+    orbitronMed.setHeight (20.0f);
     
     fondoSideCompleto = juce::ImageCache::getFromMemory (BinaryData::aluminio_jpg, BinaryData::aluminio_jpgSize);
 
@@ -62,6 +66,8 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     configurarKnob (sliderHPF, lblHPF, " Hz");
     configurarKnob (sliderLPF, lblLPF, " kHz");
     configurarKnob (sliderMix, lblMix, "%");
+    sliderInputGain.setLookAndFeel (&estiloKnobGain);
+    configurarKnob (sliderInputGain, lblInputGain, " dB");
 
     addAndMakeVisible (comboIR);
     auto nombresIR = audioProcessor.obtenerNombresIR();
@@ -74,6 +80,7 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     attachmentHPF = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "hpf", sliderHPF);
     attachmentLPF = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "lpf", sliderLPF);
     attachmentMix = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "mix", sliderMix);
+    attachmentInputGain = std::make_unique<SliderAttachment> (audioProcessor.obtenerAPVTS(), "inputGain", sliderInputGain);
     attachmentIR = std::make_unique<ComboBoxAttachment> (audioProcessor.obtenerAPVTS(), "ir_select", comboIR);
 
     auto actualizarTextoLabel = [] (juce::Slider& s, juce::Label& l, const juce::String& nombreParametro)
@@ -93,6 +100,8 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
             valorTexto = juce::String (valor, 1) + sufijo;
         else if (nombreParametro == "Pre-Delay")
             valorTexto = juce::String (static_cast<int>(valor)) + sufijo;
+        else if (nombreParametro == "Input Gain")
+            valorTexto = juce::String (valor, 1) + sufijo;
         else
             valorTexto = juce::String (valor, 1) + sufijo;
 
@@ -104,17 +113,20 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     sliderHPF.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderHPF, lblHPF, "High-Pass"); };
     sliderLPF.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass"); };
     sliderMix.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderMix, lblMix, "Mix"); };
+    sliderInputGain.onValueChange = [this, actualizarTextoLabel] { actualizarTextoLabel (sliderInputGain, lblInputGain, "Input Gain"); };
 
     actualizarTextoLabel (sliderPreDelay, lblPreDelay, "Pre-Delay");
     actualizarTextoLabel (sliderDecay, lblDecay, "Decay");
     actualizarTextoLabel (sliderHPF, lblHPF, "High-Pass");
     actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass");
     actualizarTextoLabel (sliderMix, lblMix, "Mix");
+    actualizarTextoLabel (sliderInputGain, lblInputGain, "Input Gain");
 }
 
 Reverb402Component::~Reverb402Component()
 {
     setLookAndFeel (nullptr);
+    sliderInputGain.setLookAndFeel (nullptr);
 }
 
 void Reverb402Component::paint (juce::Graphics& g)
@@ -277,6 +289,17 @@ void Reverb402Component::paint (juce::Graphics& g)
     g.drawText ("OUT", outMeterLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
     g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
     g.drawText ("OUT", outMeterLabelBounds, juce::Justification::centred);
+
+    auto inputSpacerBounds = leftSidebarBounds.removeFromTop (87);
+    auto inputGainLabelBounds = leftSidebarBounds.removeFromTop (10);
+
+    g.setFont (orbitronMed);
+    g.setColour (juce::Colours::black);
+    g.drawText ("In Gain", inputGainLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("In Gain", inputGainLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("In Gain", inputGainLabelBounds, juce::Justification::centred);
 }
 
 void Reverb402Component::resized ()
@@ -294,11 +317,18 @@ void Reverb402Component::resized ()
     }
 
     int anchoEscala = 25;
+
     auto inMeterBounds = leftSidebarBounds.removeFromBottom (340).reduced (12, 10);
     auto inMeterLabelBounds = inMeterBounds.removeFromTop (30);
     auto escalaInBounds = inMeterBounds.removeFromLeft (anchoEscala);
     escalaDbIn.setBounds (escalaInBounds);
     inMeterBounds.reduce(2, 0);
+
+    auto inputSpacerBounds = leftSidebarBounds.removeFromTop (87);
+    auto inputGainLabelBounds = leftSidebarBounds.removeFromTop (10);
+    auto sliderInputGainBounds = leftSidebarBounds.removeFromTop (121).reduced (5);
+    sliderInputGain.setBounds (sliderInputGainBounds);
+
     auto outMeterBounds = rightSidebarBounds.removeFromBottom (340).reduced (12, 10);
     auto outMeterLabelBounds = outMeterBounds.removeFromTop (30);
     auto escalaOutBounds = outMeterBounds.removeFromRight (anchoEscala);

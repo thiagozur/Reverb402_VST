@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include <JuceHeader.h>
-#include "PluginProcessor.h"
-#include "EstiloPushBtn.h"
+#include "../PluginProcessor.h"
+#include "../Estilos/EstiloPushBtn.h"
 
 class IRWaveformPlot : public juce::Component, public juce::Timer
 {
