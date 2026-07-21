@@ -63,9 +63,10 @@ void MedidorNivel::resized ()
 
     escala.point1 = bounds.getBottomLeft();
     escala.point2 = bounds.getTopLeft();
-    escala.addColour (0.0, juce::Colours::green);
-    escala.addColour (0.5, juce::Colours::yellow);
-    escala.addColour (1.0, juce::Colours::red);
+    escala.addColour (0.0, juce::Colour (0xFF00A0D2));
+    escala.addColour (0.5, juce::Colour (0xFF00E5FF));
+    escala.addColour (0.8, juce::Colour (0xFFD6F4FF));
+    escala.addColour (1.0, juce::Colour (0xFFFFFFFF));
     escala.isRadial = false;
 
     auto boundsLuces = getLocalBounds();

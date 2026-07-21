@@ -3,9 +3,6 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-static constexpr float dBMin = -60.0f;
-static constexpr float dBMax = 6.0f;
-
 class Luz : public juce::Component
 {
 public:
@@ -29,6 +26,10 @@ public:
     MedidorNivel (std::function<float()>&& funcionValores);
     ~MedidorNivel() override;
 
+    static constexpr float dBMin = -60.0f;
+    static constexpr float dBMax = 6.0f;
+    static constexpr int totalLuces = 10;
+
     void resized () override;
 
     void timerCallback() override;
@@ -37,7 +38,6 @@ private:
     std::function<float()> obtenerValores;
     std::vector<std::unique_ptr<Luz>> luces;
     juce::ColourGradient escala;
-    const int totalLuces = 10;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MedidorNivel)
 };

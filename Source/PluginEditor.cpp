@@ -6,16 +6,18 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     setLookAndFeel (&estilo402);
 
     auto orbitronTypeface = juce::Typeface::createSystemTypefaceFor (BinaryData::OrbitronBlack_ttf, BinaryData::OrbitronBlack_ttfSize);
-    orbitron = juce::Font(orbitronTypeface);
+    orbitron = juce::Font (orbitronTypeface);
     orbitron.setHeight (30.0f);
     
-    fondoSideCompleto = juce::ImageCache::getFromMemory (BinaryData::metal1_jpg, BinaryData::metal1_jpgSize);
+    fondoSideCompleto = juce::ImageCache::getFromMemory (BinaryData::aluminio_jpg, BinaryData::aluminio_jpgSize);
 
     addAndMakeVisible (visualizadorIR);
     visualizadorIR.onABToggled = [this] { actualizarMenuPresets();  };
 
+    addAndMakeVisible (escalaDbIn);
     addAndMakeVisible (medidorNivelInL);
     addAndMakeVisible (medidorNivelInR);
+    addAndMakeVisible (escalaDbOut);
     addAndMakeVisible (medidorNivelOutL);
     addAndMakeVisible (medidorNivelOutR);
 
@@ -120,7 +122,7 @@ void Reverb402Component::paint (juce::Graphics& g)
     auto frameBounds = getLocalBounds();
     auto areaMenuPresets = frameBounds.removeFromTop (45);
     auto leftSidebarBounds = frameBounds.removeFromLeft(90);
-    auto bounds = frameBounds.removeFromLeft(800);
+    auto bounds = frameBounds.removeFromLeft(812);
     auto rightSidebarBounds = frameBounds;
 
     if (fondoSide.isValid())
@@ -130,8 +132,24 @@ void Reverb402Component::paint (juce::Graphics& g)
     }
     
     auto areaSuperior = bounds.removeFromTop (305);
+    auto areaAristaIzq = areaSuperior.removeFromLeft (8).toFloat();
+    auto areaAristaDer = areaSuperior.removeFromRight (8).toFloat();
     auto areaBorde = bounds.removeFromTop (10);
     auto areaInferior = bounds;
+
+    juce::Path aristaIzq;
+    aristaIzq.startNewSubPath (areaBorde.toFloat().getBottomLeft());
+    aristaIzq.lineTo (areaAristaIzq.getTopLeft());
+    aristaIzq.lineTo (areaAristaIzq.getTopRight());
+    aristaIzq.lineTo (areaAristaIzq.getBottomRight());
+    aristaIzq.closeSubPath();
+
+    juce::Path aristaDer;
+    aristaDer.startNewSubPath (areaBorde.toFloat().getBottomRight());
+    aristaDer.lineTo (areaAristaDer.getTopRight());
+    aristaDer.lineTo (areaAristaDer.getTopLeft());
+    aristaDer.lineTo (areaAristaDer.getBottomLeft());
+    aristaDer.closeSubPath();
 
     g.setColour (juce::Colour (0xFF111113)); 
     g.fillRect (areaMenuPresets);
@@ -143,34 +161,92 @@ void Reverb402Component::paint (juce::Graphics& g)
     shadeSuperior.isRadial = false;
     shadeSuperior.point1 = areaSuperior.toFloat().getTopLeft();
     shadeSuperior.point2 = areaSuperior.toFloat().getBottomLeft();
-
-    shadeSuperior.addColour (0.0f, juce::Colour (0xFF1F2024).darker(0.4));
+    shadeSuperior.addColour (0.0f, juce::Colour (0xFF1F2024).darker (0.4));
     shadeSuperior.addColour (0.05f, juce::Colour (0xFF1F2024));
     shadeSuperior.addColour (0.95f, juce::Colour (0xFF1F2024));
-    shadeSuperior.addColour (1.0f, juce::Colour (0xFF1F2024).darker(0.4));
+    shadeSuperior.addColour (1.0f, juce::Colour (0xFF1F2024).darker (0.4));
     
     g.setGradientFill(shadeSuperior);
+    g.fillRect (areaSuperior);
+
+    juce::ColourGradient shadeSuperiorHorizontal;
+    shadeSuperiorHorizontal.isRadial = false;
+    shadeSuperiorHorizontal.point1 = areaSuperior.toFloat().getTopLeft();
+    shadeSuperiorHorizontal.point2 = areaSuperior.toFloat().getTopRight();
+    shadeSuperiorHorizontal.addColour (0.0f, juce::Colour (0xFF1F2024).darker (1));
+    shadeSuperiorHorizontal.addColour (0.03f, juce::Colour (0xFF1F2024).withAlpha (0.0f));
+    shadeSuperiorHorizontal.addColour (0.97f, juce::Colour (0xFF1F2024).withAlpha (0.0f));
+    shadeSuperiorHorizontal.addColour (1.0f, juce::Colour (0xFF1F2024).darker (1));
+
+    g.setGradientFill(shadeSuperiorHorizontal);
     g.fillRect (areaSuperior);
 
     juce::ColourGradient shadeBorde;
     shadeBorde.isRadial = false;
     shadeBorde.point1 = areaBorde.toFloat().getTopLeft();
     shadeBorde.point2 = areaBorde.toFloat().getBottomLeft();
-
-    shadeBorde.addColour (0.0f, juce::Colour (0xFFFCFCFC).darker(0.6));
+    shadeBorde.addColour (0.0f, juce::Colour (0xFFFCFCFC).darker (0.6));
     shadeBorde.addColour (0.8f, juce::Colour (0xFFFCFCFC));
     shadeBorde.addColour (1.0f, juce::Colour (0xFFFCFCFC));
 
-    g.setGradientFill(shadeBorde); 
+    g.setGradientFill(shadeBorde);
     g.fillRect (areaBorde);
 
-    g.setColour (juce::Colour (0xFFEAEAEA)); 
-    g.fillRect (areaInferior);
+    juce::ColourGradient shadeBordeHorizontal;
+    shadeBordeHorizontal.isRadial = false;
+    shadeBordeHorizontal.point1 = areaBorde.toFloat().getTopLeft();
+    shadeBordeHorizontal.point2 = areaBorde.toFloat().getTopRight();
+    shadeBordeHorizontal.addColour (0.0f, juce::Colour (0xFFFCFCFC).darker (4));
+    shadeBordeHorizontal.addColour (0.05f, juce::Colour (0xFFFCFCFC).withAlpha (0.0f));
+    shadeBordeHorizontal.addColour (0.95f, juce::Colour (0xFFFCFCFC).withAlpha (0.0f));
+    shadeBordeHorizontal.addColour (1.0f, juce::Colour (0xFFFCFCFC).darker (4));
 
-    g.setColour (juce::Colour (0xFF2D2D34).withAlpha (0.3f));
-    g.drawHorizontalLine (areaSuperior.getBottom(), areaSuperior.getX(), static_cast<float>(areaSuperior.getWidth() + leftSidebarBounds.getWidth()));
-    g.setColour (juce::Colours::white);
-    g.drawHorizontalLine (areaBorde.getBottom(), leftSidebarBounds.getWidth(), static_cast<float>(areaBorde.getWidth() + leftSidebarBounds.getWidth()));
+    g.setGradientFill (shadeBordeHorizontal);
+    g.fillRect (areaBorde);
+
+    juce::ColourGradient shadeBordeInv;
+    shadeBordeInv.isRadial = false;
+    shadeBordeInv.point1 = areaBorde.toFloat().getBottomLeft();
+    shadeBordeInv.point2 = areaBorde.toFloat().getTopLeft();
+    shadeBordeInv.addColour (0.0f, juce::Colour (0xFFFCFCFC).withAlpha (0.8f));
+    shadeBordeInv.addColour (0.8f, juce::Colour (0xFFFCFCFC).withAlpha (0.0f));
+
+    g.setGradientFill (shadeBordeInv);
+    g.fillRect (areaBorde);
+
+    juce::ColourGradient shadeAristaIzq;
+    shadeAristaIzq.isRadial = false;
+    shadeAristaIzq.point1 = areaAristaIzq.getTopRight();
+    shadeAristaIzq.point2 = areaAristaIzq.getTopLeft();
+    shadeAristaIzq.addColour (0.0f, juce::Colour (0xFF282B2A).darker (0.9));
+    shadeAristaIzq.addColour (0.6f, juce::Colour (0xFF282B2A).darker (0.2));
+    shadeAristaIzq.addColour (1.0f, juce::Colour (0xFF282B2A).brighter (0.05));
+
+    g.setGradientFill (shadeAristaIzq);
+    g.fillPath (aristaIzq);
+
+    juce::ColourGradient shadeAristaDer;
+    shadeAristaDer.isRadial = false;
+    shadeAristaDer.point1 = areaAristaDer.getTopLeft();
+    shadeAristaDer.point2 = areaAristaDer.getTopRight();
+    shadeAristaDer.addColour (0.0f, juce::Colour (0xFF282B2A).darker (0.9));
+    shadeAristaDer.addColour (0.6f, juce::Colour (0xFF282B2A).darker (0.2));
+    shadeAristaDer.addColour (1.0f, juce::Colour (0xFF282B2A).brighter (0.05));
+
+    g.setGradientFill (shadeAristaDer);
+    g.fillPath (aristaDer);
+
+    juce::ColourGradient shadeInferior;
+    shadeInferior.isRadial = false;
+    shadeInferior.point1 = areaInferior.toFloat().getTopLeft();
+    shadeInferior.point2 = areaInferior.toFloat().getTopRight();
+    shadeInferior.addColour (0.0f, juce::Colour (0xFFEAEAEA).darker (0.2));
+    shadeInferior.addColour (0.01f, juce::Colour (0xFFEAEAEA));
+    shadeInferior.addColour (0.99f, juce::Colour (0xFFEAEAEA));
+    shadeInferior.addColour (1.0f, juce::Colour (0xFFEAEAEA).darker (0.2));
+
+    g.setGradientFill(shadeInferior); 
+    g.fillRect (areaInferior);
 
     g.setFont (orbitron);
     g.setColour (juce::Colour (0xFF1F2024));
@@ -181,6 +257,26 @@ void Reverb402Component::paint (juce::Graphics& g)
     int logoHeight = 40;
 
     g.drawText ("Reverb402", logoXPos, logoYPos, logoWidth, logoHeight, juce::Justification::topLeft);
+    
+    auto inMeterBounds = leftSidebarBounds.removeFromBottom (340);
+    auto inMeterLabelBounds = inMeterBounds.removeFromTop (30).toFloat();
+    
+    g.setColour (juce::Colours::black);
+    g.drawText ("IN", inMeterLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("IN", inMeterLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("IN", inMeterLabelBounds, juce::Justification::centred);
+
+    auto outMeterBounds = rightSidebarBounds.removeFromBottom (340);
+    auto outMeterLabelBounds = outMeterBounds.removeFromTop (30).toFloat();
+    
+    g.setColour (juce::Colours::black);
+    g.drawText ("OUT", outMeterLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("OUT", outMeterLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("OUT", outMeterLabelBounds, juce::Justification::centred);
 }
 
 void Reverb402Component::resized ()
@@ -188,7 +284,7 @@ void Reverb402Component::resized ()
     auto frameBounds = getLocalBounds();
     auto areaPresets = frameBounds.removeFromTop (45).reduced (10, 8);
     auto leftSidebarBounds = frameBounds.removeFromLeft (90);
-    auto bounds = frameBounds.removeFromLeft (800);
+    auto bounds = frameBounds.removeFromLeft (812);
     auto rightSidebarBounds = frameBounds;
 
     if (fondoSideCompleto.isValid())
@@ -197,8 +293,17 @@ void Reverb402Component::resized ()
         fondoSide = fondoSideCompleto.getClippedImage (zonaCorte);
     }
 
-    auto inMeterBounds = leftSidebarBounds.removeFromBottom (340).reduced (20);
-    auto outMeterBounds = rightSidebarBounds.removeFromBottom (340).reduced (20);
+    int anchoEscala = 25;
+    auto inMeterBounds = leftSidebarBounds.removeFromBottom (340).reduced (12, 10);
+    auto inMeterLabelBounds = inMeterBounds.removeFromTop (30);
+    auto escalaInBounds = inMeterBounds.removeFromLeft (anchoEscala);
+    escalaDbIn.setBounds (escalaInBounds);
+    inMeterBounds.reduce(2, 0);
+    auto outMeterBounds = rightSidebarBounds.removeFromBottom (340).reduced (12, 10);
+    auto outMeterLabelBounds = outMeterBounds.removeFromTop (30);
+    auto escalaOutBounds = outMeterBounds.removeFromRight (anchoEscala);
+    escalaDbOut.setBounds (escalaOutBounds);
+    outMeterBounds.reduce(2, 0);
 
     auto inMeterBoundsL = inMeterBounds.removeFromLeft (inMeterBounds.getWidth() / 2.0f);
     auto inMeterBoundsR = inMeterBounds;
@@ -219,6 +324,9 @@ void Reverb402Component::resized ()
     areaPresets.removeFromRight (4);
 
     comboPresets.setBounds (areaPresets);
+
+    auto areaAristaIzq = bounds.removeFromLeft (6);
+    auto areaAristaDer = bounds.removeFromRight (6);
 
     visualizadorIR.setBounds (bounds.removeFromTop (300).reduced (10, 8));
 

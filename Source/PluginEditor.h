@@ -5,6 +5,7 @@
 #include "IRVisualizer.h"
 #include "Estilo402.h"
 #include "MedidorNivel.h"
+#include "Componentes/EscalaDb.h"
 
 class Reverb402Component : public juce::Component
 {
@@ -29,6 +30,8 @@ private:
     IRVisualizerContainer visualizadorIR;
     MedidorNivel medidorNivelInL;
     MedidorNivel medidorNivelInR;
+    EscalaDb escalaDbIn { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
+    EscalaDb escalaDbOut { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
     MedidorNivel medidorNivelOutL;
     MedidorNivel medidorNivelOutR;
 
@@ -81,7 +84,7 @@ public:
     void resized() override;
 
 private:
-    static constexpr int originalWidth { 980 };
+    static constexpr int originalWidth { 992 };
     static constexpr int originalHeight { 700 };
 
     juce::ComponentBoundsConstrainer myConstrainer;

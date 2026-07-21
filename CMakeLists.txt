@@ -37,14 +37,17 @@ target_sources(Reverb402 PRIVATE
     Source/Estilo402.cpp
     Source/EstiloPushBtn.cpp
     Source/MedidorNivel.cpp
+    Source/Componentes/EscalaDb.cpp
 )
 
 juce_add_binary_data(Reverb402_resources
     SOURCES
         Resources/Fonts/Orbitron/static/Orbitron-Black.ttf
+        Resources/Fonts/Chivo_Mono/static/ChivoMono-SemiBold.ttf
         Resources/Textures/madera1.jpg
         Resources/Textures/metal1.jpg
         Resources/Textures/metal2.jpg
+        Resources/Textures/aluminio.jpg
 )
 
 target_link_libraries(Reverb402 PRIVATE

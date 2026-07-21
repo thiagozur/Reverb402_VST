@@ -71,7 +71,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
                 return juce::String (val / 1000.0f, 1) + " kHz";
             return juce::String (juce::roundToInt (val)) + " Hz";
         })
-));
+    ));
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         "ir_select",
@@ -85,6 +85,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
     "Botón A/B",
     false
     ));
+
+    /* layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID {
+            "inpuGain",
+            1
+        },
+        "Input Gain",
+        juce::NormalisableRange<float> (-24.0f, 12.0f, 0.1f, 1.0f),
+        0.0f,
+        juce::String(),
+        juce::AudioProcessorParameter::genericParameter,
+        [] (float valor, int) { return juce::String (valor, 1) + " dB"; }
+    )); */
     
     return layout;
 }
@@ -402,6 +415,11 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     if (totalNumInputChannels == 0 || numMuestras == 0)
         return;
+
+    /* auto inputGainDb = listaParametros.getRawParameterValue ("inputGain")->load();
+    auto inputGainLineal = juce::Decibels::decibelsToGain (inputGainDb);
+
+    buffer.applyGain (inputGainLineal); */
 
     rmsInL.skip (numMuestras);
     rmsInR.skip (numMuestras);
