@@ -66,6 +66,7 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     configurarKnob (sliderHPF, lblHPF, " Hz");
     configurarKnob (sliderLPF, lblLPF, " kHz");
     configurarKnob (sliderMix, lblMix, "%");
+
     sliderInputGain.setLookAndFeel (&estiloKnobGain);
     configurarKnob (sliderInputGain, lblInputGain, " dB");
 
@@ -121,6 +122,19 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     actualizarTextoLabel (sliderLPF, lblLPF, "Low-Pass");
     actualizarTextoLabel (sliderMix, lblMix, "Mix");
     actualizarTextoLabel (sliderInputGain, lblInputGain, "Input Gain");
+
+    auto configurarBtn = [this](juce::TextButton& b)
+    {
+        b.setButtonText ("");
+        b.setClickingTogglesState (true);
+        b.setComponentID ("ClickButton");
+        b.setLookAndFeel (&estiloClickBtn);
+        addAndMakeVisible (b);
+    };
+
+    configurarBtn (btnDuck);
+
+    attachmentDuck = std::make_unique<ButtonAttachment> (audioProcessor.obtenerAPVTS(), "duck", btnDuck);
 }
 
 Reverb402Component::~Reverb402Component()
@@ -334,6 +348,10 @@ void Reverb402Component::resized ()
     auto escalaOutBounds = outMeterBounds.removeFromRight (anchoEscala);
     escalaDbOut.setBounds (escalaOutBounds);
     outMeterBounds.reduce(2, 0);
+
+    auto outputSpacerBounds = rightSidebarBounds.removeFromTop (80);
+    auto btnDuckBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
+    btnDuck.setBounds (btnDuckBounds);
 
     auto inMeterBoundsL = inMeterBounds.removeFromLeft (inMeterBounds.getWidth() / 2.0f);
     auto inMeterBoundsR = inMeterBounds;

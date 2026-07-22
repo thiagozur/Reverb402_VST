@@ -17,6 +17,7 @@ Reverb402AudioProcessor::Reverb402AudioProcessor()
     paramPreDelay = listaParametros.getRawParameterValue("predelay");
     paramIRSelection = listaParametros.getRawParameterValue("ir_select");
     paramInputGain = listaParametros.getRawParameterValue("inputGain");
+    paramDuck = listaParametros.getRawParameterValue("duck");
 
     actualizarListaPresets();
 
@@ -96,6 +97,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
             [](float value, int) { return juce::String (value, 1) + " dB"; }
         )
     ));
+
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "duck", 1 },
+        "Ducked Reverb",
+        false
+    ));
     
     return layout;
 }
@@ -125,6 +132,12 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
         *filtrosCorte[canal].get<0>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 20.0f);
         *filtrosCorte[canal].get<1>().coefficients = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 20000.0f);
     } 
+
+    duckDetector.prepare (spec);
+    duckDetector.setLevelCalculationType (juce::dsp::BallisticsFilterLevelCalculationType::RMS);
+    duckDetector.setAttackTime (10.0f);
+    duckDetector.setReleaseTime (200.0f);
+    duckDetector.reset();
     
     juce::dsp::ProcessSpec specConvolucion;
     specConvolucion.sampleRate = sampleRate;
@@ -419,6 +432,29 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     buffer.applyGain (inputGainLineal);
 
+    bool duck = paramDuck->load() > 0.5f;
+    float gananciaDuckTarget = 1.0f;
+    
+    if (duck)
+    {
+        float muestraMax = buffer.getMagnitude (0, numMuestras);
+        float nivelEntrada = duckDetector.processSample (0, muestraMax);
+
+        const float umbralLineal = juce::Decibels::decibelsToGain (-36.0f);
+        const float maxDuckDb = -32.0f;
+
+        if (nivelEntrada > umbralLineal)
+        {
+            float exceso = (nivelEntrada - umbralLineal) / (1.0f - umbralLineal);
+            exceso = juce::jlimit (0.0f, 1.0f, exceso);
+
+            exceso = std::pow (exceso, 0.7f);
+
+            float atenuacionDb = exceso * maxDuckDb;
+            gananciaDuckTarget = juce::Decibels::decibelsToGain (atenuacionDb);
+        }
+    }
+
     rmsInL.skip (numMuestras);
     rmsInR.skip (numMuestras);
 
@@ -588,7 +624,9 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     for (int muestra = 0; muestra < numMuestras; ++muestra)
     {
-        gananciaRampa += (gananciaObjetivo - gananciaRampa) * 0.02f; 
+        gananciaRampa += (gananciaObjetivo - gananciaRampa) * 0.02f;
+
+        duckGainSmoothing += (gananciaDuckTarget - duckGainSmoothing) * 0.015f;
 
         for (int canal = 0; canal < totalNumOutputChannels; ++canal)
         {
@@ -596,7 +634,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             auto* datosDry = bufferDryCompensado.getReadPointer (canal);
             auto* datosWet = bufferWet.getReadPointer (canal);
 
-            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente * gananciaRampa;
+            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente * gananciaRampa * duckGainSmoothing;
             
             float senalFinal = (datosDry[muestra] * gananciaDry) + (senalWetNormalizada * gananciaWet);
             
@@ -772,6 +810,8 @@ void Reverb402AudioProcessor::setCurrentProgram (int index)
         pLPF->setValueNotifyingHost (listaParametros.getParameterRange ("lpf").convertTo0to1 (preset.lpf));
     if (auto* pIR = listaParametros.getParameter ("ir_select"))
         pIR->setValueNotifyingHost (listaParametros.getParameterRange ("ir_select").convertTo0to1 (static_cast<float>(preset.irSelect)));
+    if (auto* pDuck = listaParametros.getParameter ("duck"))
+        pDuck->setValueNotifyingHost (preset.duck ? 1.0f : 0.0f);
 
     updateHostDisplay();
 }
@@ -823,6 +863,7 @@ void Reverb402AudioProcessor::actualizarListaPresets()
             pUser.hpf = xml->getDoubleAttribute ("hpf", 20.0);
             pUser.lpf = xml->getDoubleAttribute ("lpf", 20000.0);
             pUser.irSelect = xml->getIntAttribute ("ir_select", 0);
+            pUser.duck = xml->getBoolAttribute ("duck", 0);
 
             listaCompletaPresets.push_back (pUser);
         }
@@ -844,6 +885,7 @@ void Reverb402AudioProcessor::guardarPresetRapido(const juce::String& nombrePres
     xml->setAttribute ("hpf", paramHPF->load());
     xml->setAttribute ("lpf", paramLPF->load());
     xml->setAttribute ("ir_select", static_cast<int>(paramIRSelection->load()));
+    xml->setAttribute ("duck", paramDuck->load() > 0.5f);
 
     xml->writeTo (archivoDestino);
 

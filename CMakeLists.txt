@@ -39,6 +39,7 @@ target_sources(Reverb402 PRIVATE
     Source/Estilos/Estilo402.cpp
     Source/Estilos/EstiloPushBtn.cpp
     Source/Estilos/EstiloKnobGain.cpp
+    Source/Estilos/EstiloClickBtn.cpp
 )
 
 juce_add_binary_data(Reverb402_resources

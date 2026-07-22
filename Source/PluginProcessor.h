@@ -13,6 +13,7 @@ struct Preset
     int irSelect;
     bool esDeUsuario;
     juce::File archivoOrigen;
+    bool duck;
 };
 
 class Reverb402AudioProcessor : public juce::AudioProcessor
@@ -58,10 +59,10 @@ public:
 
     std::vector<Preset> listaCompletaPresets;
     const std::vector<Preset> presetsDeFabrica = {
-    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}},
-    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 350.0f, 20000.0f, 2, false, {}},
-    { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}},
-    { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}},
+    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}, false},
+    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 350.0f, 20000.0f, 2, false, {}, false},
+    { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}, false},
+    { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}, false},
     };
     
     void conmutarEstadoAB (bool usarEstadoB);
@@ -112,6 +113,9 @@ private:
 
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> lineaPreDelay;
 
+    juce::dsp::BallisticsFilter<float> duckDetector;
+    float duckGainSmoothing = 1.0f;
+
     std::atomic<float>* paramMix = nullptr;
     std::atomic<float>* paramDecay = nullptr;
     std::atomic<float>* paramHPF = nullptr;
@@ -119,6 +123,7 @@ private:
     std::atomic<float>* paramPreDelay = nullptr;
     std::atomic<float>* paramIRSelection = nullptr;
     std::atomic<float>* paramInputGain = nullptr;
+    std::atomic<float>* paramDuck = nullptr;
 
     juce::StringArray nombresIRs {
         "IR 1 - Alumno Izquierda",

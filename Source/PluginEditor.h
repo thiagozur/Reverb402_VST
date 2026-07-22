@@ -5,6 +5,7 @@
 #include "Componentes/IRVisualizer.h"
 #include "Estilos/Estilo402.h"
 #include "Estilos/EstiloKnobGain.h"
+#include "Estilos/EstiloClickBtn.h"
 #include "Componentes/MedidorNivel.h"
 #include "Componentes/EscalaDb.h"
 
@@ -28,11 +29,15 @@ private:
 
     Estilo402 estilo402;
     EstiloKnobGain estiloKnobGain;
+    EstiloClickBtn estiloClickBtn;
 
     IRVisualizerContainer visualizadorIR;
+
+    EscalaDb escalaDbIn { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
     MedidorNivel medidorNivelInL;
     MedidorNivel medidorNivelInR;
-    EscalaDb escalaDbIn { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
+
+    juce::TextButton btnDuck;
     EscalaDb escalaDbOut { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
     MedidorNivel medidorNivelOutL;
     MedidorNivel medidorNivelOutR;
@@ -66,6 +71,7 @@ private:
 
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     std::unique_ptr<SliderAttachment> attachmentPreDelay;
     std::unique_ptr<SliderAttachment> attachmentDecay;
@@ -74,6 +80,7 @@ private:
     std::unique_ptr<SliderAttachment> attachmentMix;
     std::unique_ptr<SliderAttachment> attachmentInputGain;
     std::unique_ptr<ComboBoxAttachment> attachmentIR;
+    std::unique_ptr<ButtonAttachment> attachmentDuck;
 
     void actualizarMenuPresets();
     void cambiarPresetRelativo (int direccion);
