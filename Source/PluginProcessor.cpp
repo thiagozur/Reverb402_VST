@@ -10,14 +10,16 @@ Reverb402AudioProcessor::Reverb402AudioProcessor()
 
     empaquetadorFormatos.registerBasicFormats();
 
-    paramMix = listaParametros.getRawParameterValue("mix");
-    paramDecay = listaParametros.getRawParameterValue("decay");
-    paramHPF = listaParametros.getRawParameterValue("hpf");
-    paramLPF = listaParametros.getRawParameterValue("lpf");
-    paramPreDelay = listaParametros.getRawParameterValue("predelay");
-    paramIRSelection = listaParametros.getRawParameterValue("ir_select");
-    paramInputGain = listaParametros.getRawParameterValue("inputGain");
-    paramDuck = listaParametros.getRawParameterValue("duck");
+    paramMix = listaParametros.getRawParameterValue ("mix");
+    paramDecay = listaParametros.getRawParameterValue ("decay");
+    paramHPF = listaParametros.getRawParameterValue ("hpf");
+    paramLPF = listaParametros.getRawParameterValue ("lpf");
+    paramPreDelay = listaParametros.getRawParameterValue ("predelay");
+    paramIRSelection = listaParametros.getRawParameterValue ("ir_select");
+    paramInputGain = listaParametros.getRawParameterValue ("inputGain");
+    paramDuck = listaParametros.getRawParameterValue ("duck");
+    paramAir = listaParametros.getRawParameterValue ("air");
+    paramWarm = listaParametros.getRawParameterValue ("warm");
 
     actualizarListaPresets();
 
@@ -103,6 +105,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
         "Ducked Reverb",
         false
     ));
+
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "air", 1 },
+        "Air",
+        false
+    ));
+
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "warm", 1 },
+        "Warm",
+        false
+    ));
     
     return layout;
 }
@@ -138,6 +152,12 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     duckDetector.setAttackTime (10.0f);
     duckDetector.setReleaseTime (200.0f);
     duckDetector.reset();
+
+    filtroAirShelf.prepare (spec);
+    *filtroAirShelf.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 8000.0f, 0.707f, juce::Decibels::decibelsToGain (3.5f));
+
+    filtroAirHPF.prepare (spec);
+    *filtroAirHPF.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 6000.0f, 0.707f);
     
     juce::dsp::ProcessSpec specConvolucion;
     specConvolucion.sampleRate = sampleRate;
@@ -159,6 +179,8 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
     lineaCompensacionDry.setDelay (static_cast<float>(getLatencySamples()));
     bufferDryCompensado.setSize (2, samplesPerBlock, false, true, true);
+
+    bufferAgudosAir.setSize (2, samplesPerBlock, false, true, true);
 }
 
 juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
@@ -480,6 +502,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     float valorLPF = paramLPF->load();
     float valorDecay = paramDecay->load();
     int irElegida = static_cast<int>(paramIRSelection->load());
+    bool airActivo = paramAir->load() > 0.5f;
 
     if (irElegida != ultimaIrCargada)
     {
@@ -489,13 +512,20 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         ultimoFactorDecay = -1.0f;
     }
 
+    if (airActivo != ultimoEstadoAir)
+    {
+        ultimoEstadoAir = airActivo;
+        enTransicion = true;
+        ultimoFactorDecay = -1.0f;
+    }
+
     if (debeCargarNuevoArchivo.load() || (valorDecay != ultimoFactorDecay && irOriginal.getNumSamples() > 0))
     {
         bool cargarNuevo = debeCargarNuevoArchivo.exchange (false);
         ultimoFactorDecay = valorDecay;
         enTransicion = true;
 
-        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo]()
+        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo, airActivo]()
         {
             if (cargarNuevo)
             {
@@ -509,6 +539,13 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             if (irOriginal.getNumSamples() > 0)
             {
                 juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
+
+                if (airActivo)
+                {
+                    juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
+                    juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
+                    filtroAirShelf.process (contextoIR);
+                }
 
                 juce::AudioBuffer<float> head, tail;
                 dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
@@ -605,6 +642,33 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         filtrosCorte[canal].process (contextoCanal);
     }
 
+    if (airActivo)
+    {
+        for (int canal = 0; canal < 2; ++canal)
+            bufferAgudosAir.copyFrom (canal, 0, bufferWet, canal, 0, numMuestras);
+
+        juce::dsp::AudioBlock<float> bloqueAgudos (bufferAgudosAir);
+        juce::dsp::ProcessContextReplacing<float> contextoAgudos (bloqueAgudos);
+        filtroAirHPF.process (contextoAgudos);
+
+        const float driveAir = 2.0f;
+        const float cantidadArmonicos = 0.15f; 
+
+        for (int canal = 0; canal < 2; ++canal)
+        {
+            auto* datosWet = bufferWet.getWritePointer (canal);
+            auto* datosAgudos = bufferAgudosAir.getReadPointer (canal);
+
+            for (int i = 0; i < numMuestras; ++i)
+            {
+                float entrada = datosAgudos[i] * driveAir;
+                float saturada = std::tanh (entrada);
+
+                datosWet[i] += saturada * cantidadArmonicos;
+            }
+        }
+    }
+
     bufferDryCompensado.setSize (2, numMuestras, false, true, true);
     for (int canal = 0; canal < 2; ++canal)
     {
@@ -661,8 +725,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             rmsOutR.setTargetValue (valor);
         else
             rmsOutR.setCurrentAndTargetValue (valor);
-    }
-    
+    }   
 }
 
 void Reverb402AudioProcessor::obtenerCopiaIrActual (juce::AudioBuffer<float>& bufferDestino)
@@ -772,6 +835,7 @@ void Reverb402AudioProcessor::releaseResources()
     motorConvolucionHead.reset();
     motorConvolucionTail.reset();
     lineaPreDelay.reset();
+    duckDetector.reset();
 
     for (int canal = 0; canal < 2; ++canal)
         filtrosCorte[canal].reset();
@@ -812,6 +876,10 @@ void Reverb402AudioProcessor::setCurrentProgram (int index)
         pIR->setValueNotifyingHost (listaParametros.getParameterRange ("ir_select").convertTo0to1 (static_cast<float>(preset.irSelect)));
     if (auto* pDuck = listaParametros.getParameter ("duck"))
         pDuck->setValueNotifyingHost (preset.duck ? 1.0f : 0.0f);
+    if (auto pAir = listaParametros.getParameter ("air"))
+        pAir->setValueNotifyingHost (preset.air ? 1.0f : 0.0f);
+    if (auto pWarm = listaParametros.getParameter ("warm"))
+        pWarm->setValueNotifyingHost (preset.warm ? 1.0f : 0.0f);
 
     updateHostDisplay();
 }
@@ -826,6 +894,7 @@ const juce::String Reverb402AudioProcessor::getProgramName (int index)
 
 void Reverb402AudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
+
 }
 
 juce::File Reverb402AudioProcessor::obtenerCarpetaPresetsUsuario()
@@ -864,6 +933,8 @@ void Reverb402AudioProcessor::actualizarListaPresets()
             pUser.lpf = xml->getDoubleAttribute ("lpf", 20000.0);
             pUser.irSelect = xml->getIntAttribute ("ir_select", 0);
             pUser.duck = xml->getBoolAttribute ("duck", 0);
+            pUser.air = xml->getBoolAttribute ("air", 0);
+            pUser.warm = xml->getBoolAttribute ("warm", 0);
 
             listaCompletaPresets.push_back (pUser);
         }
@@ -886,6 +957,8 @@ void Reverb402AudioProcessor::guardarPresetRapido(const juce::String& nombrePres
     xml->setAttribute ("lpf", paramLPF->load());
     xml->setAttribute ("ir_select", static_cast<int>(paramIRSelection->load()));
     xml->setAttribute ("duck", paramDuck->load() > 0.5f);
+    xml->setAttribute ("air", paramAir->load() > 0.5f);
+    xml->setAttribute ("warm", paramWarm->load() > 0.5f);
 
     xml->writeTo (archivoDestino);
 

@@ -14,6 +14,8 @@ struct Preset
     bool esDeUsuario;
     juce::File archivoOrigen;
     bool duck;
+    bool air;
+    bool warm;
 };
 
 class Reverb402AudioProcessor : public juce::AudioProcessor
@@ -59,10 +61,10 @@ public:
 
     std::vector<Preset> listaCompletaPresets;
     const std::vector<Preset> presetsDeFabrica = {
-    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}, false},
-    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 350.0f, 20000.0f, 2, false, {}, false},
-    { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}, false},
-    { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}, false},
+    { "Default", 0.5f, 1.0f, 0.0f, 20.0f, 20000.0f, 0, false, {}, false, false, false},
+    { "Alumno Wide Clear", 0.4f, 1.0f, 0.0f, 350.0f, 20000.0f, 2, false, {}, false, false, false},
+    { "Profesor Hall Wide", 0.6f, 2.8f, 60.0f, 120.0f, 20000.0f, 6, false, {}, false, false, false},
+    { "Profesor Dark Wide", 0.5f, 1.8f, 60.0f, 80.0f, 1800.0f, 7, false, {}, false, false, false},
     };
     
     void conmutarEstadoAB (bool usarEstadoB);
@@ -94,6 +96,8 @@ private:
     juce::dsp::DelayLine<float> lineaCompensacionDry { 16384 };
     juce::AudioBuffer<float> bufferDryCompensado;
 
+    juce::AudioBuffer<float> bufferAgudosAir;
+
     static constexpr double duracionHeadMs = 180.0;
     int latenciaCompensacionMuestras = 0;
     void dividirIREnHeadYTail (const juce::AudioBuffer<float>& irCompleta, double fs, juce::AudioBuffer<float>& outHead, juce::AudioBuffer<float>& outTail);
@@ -116,6 +120,9 @@ private:
     juce::dsp::BallisticsFilter<float> duckDetector;
     float duckGainSmoothing = 1.0f;
 
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirShelf;
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirHPF;
+
     std::atomic<float>* paramMix = nullptr;
     std::atomic<float>* paramDecay = nullptr;
     std::atomic<float>* paramHPF = nullptr;
@@ -124,6 +131,8 @@ private:
     std::atomic<float>* paramIRSelection = nullptr;
     std::atomic<float>* paramInputGain = nullptr;
     std::atomic<float>* paramDuck = nullptr;
+    std::atomic<float>* paramAir = nullptr;
+    std::atomic<float>* paramWarm = nullptr;
 
     juce::StringArray nombresIRs {
         "IR 1 - Alumno Izquierda",
@@ -137,6 +146,7 @@ private:
     };
 
     int ultimaIrCargada = -1;
+    bool ultimoEstadoAir = false;
     int programaActualA = 0;
     int programaActualB = 0;
 

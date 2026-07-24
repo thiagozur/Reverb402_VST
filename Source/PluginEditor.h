@@ -38,6 +38,8 @@ private:
     MedidorNivel medidorNivelInR;
 
     juce::TextButton btnDuck;
+    juce::TextButton btnAir;
+    juce::TextButton btnWarm;
     EscalaDb escalaDbOut { MedidorNivel::dBMin, MedidorNivel::dBMax, MedidorNivel::totalLuces, { 6.0f, 0.0f, -6.0f, -12.0f, -24.0f, -40.0f, -60.0f } };
     MedidorNivel medidorNivelOutL;
     MedidorNivel medidorNivelOutR;
@@ -81,6 +83,8 @@ private:
     std::unique_ptr<SliderAttachment> attachmentInputGain;
     std::unique_ptr<ComboBoxAttachment> attachmentIR;
     std::unique_ptr<ButtonAttachment> attachmentDuck;
+    std::unique_ptr<ButtonAttachment> attachmentAir;
+    std::unique_ptr<ButtonAttachment> attachmentWarm;
 
     void actualizarMenuPresets();
     void cambiarPresetRelativo (int direccion);

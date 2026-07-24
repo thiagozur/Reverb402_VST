@@ -6,7 +6,7 @@ void EstiloClickBtn::drawButtonBackground (juce::Graphics& g, juce::Button& butt
     bool estaActivo = button.getToggleState();
     bool estaPresionado = estaActivo || shouldDrawButtonAsDown;
 
-    g.setColour (juce::Colour (0xFF0D0D0D));
+    g.setColour (juce::Colour (0xFF1C1C1C));
     g.fillRoundedRectangle (bounds, 3.0f);
 
     juce::ColourGradient gradienteFrame (juce::Colours::white.withAlpha (0.45f), bounds.getX(), bounds.getY(), juce::Colours::black.withAlpha (0.85f), bounds.getX(), bounds.getBottom(), false);
@@ -23,7 +23,7 @@ void EstiloClickBtn::drawButtonBackground (juce::Graphics& g, juce::Button& butt
     g.setGradientFill (shadeTapa);
     g.fillRoundedRectangle (tapaBounds.expanded (0.5f, 0.0f).translated (0.0f, 1.0f), 2.5f);
 
-    juce::Colour colorTapa = juce::Colour (0xFF1E1E1E); 
+    juce::Colour colorTapa = juce::Colour (0xFF2B2B2B); 
     g.setColour (colorTapa);
     g.fillRoundedRectangle (tapaBounds, 2.5f);
 

@@ -133,14 +133,21 @@ Reverb402Component::Reverb402Component (Reverb402AudioProcessor& p) : audioProce
     };
 
     configurarBtn (btnDuck);
+    configurarBtn (btnAir);
+    configurarBtn (btnWarm);
 
     attachmentDuck = std::make_unique<ButtonAttachment> (audioProcessor.obtenerAPVTS(), "duck", btnDuck);
+    attachmentAir = std::make_unique<ButtonAttachment> (audioProcessor.obtenerAPVTS(), "air", btnAir);
+    attachmentWarm = std::make_unique<ButtonAttachment> (audioProcessor.obtenerAPVTS(), "warm", btnWarm);
 }
 
 Reverb402Component::~Reverb402Component()
 {
     setLookAndFeel (nullptr);
     sliderInputGain.setLookAndFeel (nullptr);
+    btnDuck.setLookAndFeel (nullptr);
+    btnAir.setLookAndFeel (nullptr);
+    btnWarm.setLookAndFeel (nullptr);
 }
 
 void Reverb402Component::paint (juce::Graphics& g)
@@ -352,6 +359,14 @@ void Reverb402Component::resized ()
     auto outputSpacerBounds = rightSidebarBounds.removeFromTop (80);
     auto btnDuckBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
     btnDuck.setBounds (btnDuckBounds);
+
+    outputSpacerBounds = rightSidebarBounds.removeFromTop (20);
+    auto btnAirBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
+    btnAir.setBounds (btnAirBounds);
+
+    outputSpacerBounds = rightSidebarBounds.removeFromTop (20);
+    auto btnWarmBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
+    btnWarm.setBounds (btnWarmBounds);
 
     auto inMeterBoundsL = inMeterBounds.removeFromLeft (inMeterBounds.getWidth() / 2.0f);
     auto inMeterBoundsR = inMeterBounds;
