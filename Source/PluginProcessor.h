@@ -97,6 +97,7 @@ private:
     juce::AudioBuffer<float> bufferDryCompensado;
 
     juce::AudioBuffer<float> bufferAgudosAir;
+    juce::AudioBuffer<float> bufferGravesWarm;
 
     static constexpr double duracionHeadMs = 180.0;
     int latenciaCompensacionMuestras = 0;
@@ -123,6 +124,9 @@ private:
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirShelf;
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirHPF;
 
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroWarmShelf;
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroWarmLPF;
+
     std::atomic<float>* paramMix = nullptr;
     std::atomic<float>* paramDecay = nullptr;
     std::atomic<float>* paramHPF = nullptr;
@@ -147,6 +151,7 @@ private:
 
     int ultimaIrCargada = -1;
     bool ultimoEstadoAir = false;
+    bool ultimoEstadoWarm = false;
     int programaActualA = 0;
     int programaActualB = 0;
 

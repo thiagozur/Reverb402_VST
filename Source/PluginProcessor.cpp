@@ -154,11 +154,17 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     duckDetector.reset();
 
     filtroAirShelf.prepare (spec);
-    *filtroAirShelf.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 8000.0f, 0.707f, juce::Decibels::decibelsToGain (3.5f));
+    *filtroAirShelf.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 8000.0f, 0.707f, juce::Decibels::decibelsToGain (5.5f));
 
     filtroAirHPF.prepare (spec);
     *filtroAirHPF.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 6000.0f, 0.707f);
+
+    filtroWarmShelf.prepare (spec);
+    *filtroWarmShelf.state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (sampleRate, 350.0f, 0.707f, juce::Decibels::decibelsToGain (2.5f));
     
+    filtroWarmLPF.prepare (spec);
+    *filtroWarmLPF.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 550.0f, 0.707f);
+
     juce::dsp::ProcessSpec specConvolucion;
     specConvolucion.sampleRate = sampleRate;
     specConvolucion.numChannels = spec.numChannels;
@@ -503,6 +509,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     float valorDecay = paramDecay->load();
     int irElegida = static_cast<int>(paramIRSelection->load());
     bool airActivo = paramAir->load() > 0.5f;
+    bool warmActivo = paramWarm->load() > 0.5f; 
 
     if (irElegida != ultimaIrCargada)
     {
@@ -519,13 +526,20 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         ultimoFactorDecay = -1.0f;
     }
 
+    if (warmActivo != ultimoEstadoWarm)
+    {
+        ultimoEstadoWarm = warmActivo;
+        enTransicion = true;
+        ultimoFactorDecay = -1.0f;
+    }
+
     if (debeCargarNuevoArchivo.load() || (valorDecay != ultimoFactorDecay && irOriginal.getNumSamples() > 0))
     {
         bool cargarNuevo = debeCargarNuevoArchivo.exchange (false);
         ultimoFactorDecay = valorDecay;
         enTransicion = true;
 
-        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo, airActivo]()
+        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo, airActivo, warmActivo]()
         {
             if (cargarNuevo)
             {
@@ -545,6 +559,13 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
                     juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
                     juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
                     filtroAirShelf.process (contextoIR);
+                }
+
+                if (warmActivo)
+                {
+                    juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
+                    juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
+                    filtroWarmShelf.process (contextoIR);
                 }
 
                 juce::AudioBuffer<float> head, tail;
@@ -665,6 +686,35 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
                 float saturada = std::tanh (entrada);
 
                 datosWet[i] += saturada * cantidadArmonicos;
+            }
+        }
+    }
+
+    if (warmActivo)
+    {
+        bufferGravesWarm.setSize (2, numMuestras, false, true, true);
+        for (int canal = 0; canal < 2; ++canal)
+            bufferGravesWarm.copyFrom (canal, 0, bufferWet, canal, 0, numMuestras);
+
+        juce::dsp::AudioBlock<float> bloqueGraves (bufferGravesWarm);
+        juce::dsp::ProcessContextReplacing<float> contextoGraves (bloqueGraves);
+        filtroWarmLPF.process (contextoGraves);
+
+        const float driveWarm = 1.5f;
+        const float cantidadArmonicosWarm = 0.12f;
+
+        for (int canal = 0; canal < 2; ++canal)
+        {
+            auto* datosWet = bufferWet.getWritePointer (canal);
+            auto* datosGraves = bufferGravesWarm.getReadPointer (canal);
+
+            for (int i = 0; i < numMuestras; ++i)
+            {
+                float x = datosGraves[i] * driveWarm;
+                
+                float saturadaPares = x + (0.2f * x * x) - (0.15f * x * x * x);
+
+                datosWet[i] += (saturadaPares - x) * cantidadArmonicosWarm;
             }
         }
     }
