@@ -163,7 +163,7 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     *filtroWarmShelf.state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (sampleRate, 350.0f, 0.707f, juce::Decibels::decibelsToGain (2.5f));
     
     filtroWarmLPF.prepare (spec);
-    *filtroWarmLPF.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 550.0f, 0.707f);
+    *filtroWarmLPF.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 1200.0f, 0.707f);
 
     juce::dsp::ProcessSpec specConvolucion;
     specConvolucion.sampleRate = sampleRate;
@@ -470,8 +470,8 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         bufferGananciaDuck.resize (static_cast<size_t>(numMuestras));
 
     {
-        const float umbralLineal = juce::Decibels::decibelsToGain (-36.0f);
-        const float maxDuckDb = -32.0f;
+        const float umbralLineal = juce::Decibels::decibelsToGain (-32.0f);
+        const float maxDuckDb = -18.0f;
 
         for (int m = 0; m < numMuestras; ++m)
         {
@@ -705,8 +705,8 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         juce::dsp::ProcessContextReplacing<float> contextoGraves (bloqueGraves);
         filtroWarmLPF.process (contextoGraves);
 
-        const float driveWarm = 1.5f;
-        const float cantidadArmonicosWarm = 0.12f;
+        const float driveWarm = 2.0f;
+        const float cantidadArmonicosWarm = 0.35f;
 
         for (int canal = 0; canal < 2; ++canal)
         {
@@ -717,7 +717,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             {
                 float x = datosGraves[i] * driveWarm;
                 
-                float saturadaPares = x + (0.2f * x * x) - (0.15f * x * x * x);
+                float saturadaPares = x + (0.35f * x * x) - (0.2f * x * x * x);
 
                 datosWet[i] += (saturadaPares - x) * cantidadArmonicosWarm;
             }
