@@ -81,12 +81,19 @@ private:
     juce::AudioBuffer<float> modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR);
     float factorCompensacionIR = 1.0f;
 
-    juce::dsp::Convolution motorConvolucionHead { juce::dsp::Convolution::Latency { 64 } };
-    juce::dsp::Convolution motorConvolucionTail { juce::dsp::Convolution::Latency { 4096 } };
+    juce::dsp::Convolution motorConvolucionHeadA { juce::dsp::Convolution::Latency { 64 } };
+    juce::dsp::Convolution motorConvolucionHeadB { juce::dsp::Convolution::Latency { 64 } };
+    juce::dsp::Convolution motorConvolucionTailA { juce::dsp::Convolution::Latency { 4096 } };
+    juce::dsp::Convolution motorConvolucionTailB { juce::dsp::Convolution::Latency { 4096 } };
+    std::atomic<bool> usarMotorB { false };
+
+    juce::dsp::Convolution& motorHeadActivo()   { return usarMotorB.load() ? motorConvolucionHeadB : motorConvolucionHeadA; }
+    juce::dsp::Convolution& motorTailActivo()   { return usarMotorB.load() ? motorConvolucionTailB : motorConvolucionTailA; }
+    juce::dsp::Convolution& motorHeadInactivo() { return usarMotorB.load() ? motorConvolucionHeadA : motorConvolucionHeadB; }
+    juce::dsp::Convolution& motorTailInactivo() { return usarMotorB.load() ? motorConvolucionTailA : motorConvolucionTailB; }
 
     juce::dsp::DelayLine<float> lineaCompensacionHead { 8192 };
 
-    juce::AudioBuffer<float> irHeadEnFondo, irTailEnFondo;
     juce::AudioBuffer<float> irCompletaModificada;
     float pisoRuidoActual;
     juce::AudioBuffer<float> bufferTail;
@@ -120,6 +127,7 @@ private:
 
     juce::dsp::BallisticsFilter<float> duckDetector;
     float duckGainSmoothing = 1.0f;
+    std::vector<float> bufferGananciaDuck;
 
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirShelf;
     juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> filtroAirHPF;

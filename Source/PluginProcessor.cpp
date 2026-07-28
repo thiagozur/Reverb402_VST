@@ -138,7 +138,7 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     rmsOutR.setCurrentAndTargetValue (-100.0f);
 
     lineaPreDelay.prepare (spec);
-    lineaPreDelay.setMaximumDelayInSamples (static_cast<int> (sampleRate));
+    lineaPreDelay.setMaximumDelayInSamples (static_cast<int>(sampleRate));
 
     for (int canal = 0; canal < 2; ++canal)  
     {
@@ -170,23 +170,27 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     specConvolucion.numChannels = spec.numChannels;
     specConvolucion.maximumBlockSize = samplesPerBlock;
 
-    motorConvolucionHead.prepare (specConvolucion);
-    motorConvolucionTail.prepare (specConvolucion);
+    motorConvolucionHeadA.prepare (specConvolucion);
+    motorConvolucionHeadB.prepare (specConvolucion);
+    motorConvolucionTailA.prepare (specConvolucion);
+    motorConvolucionTailB.prepare (specConvolucion);
     lineaCompensacionHead.prepare (specConvolucion);
     lineaCompensacionDry.prepare (specConvolucion);
 
     bufferTail.setSize (2, samplesPerBlock, false, true, true);
     bufferWet.setSize (2, samplesPerBlock, false, true, true);
-    
-    latenciaCompensacionMuestras = motorConvolucionTail.getLatency() - motorConvolucionHead.getLatency();
+
+    latenciaCompensacionMuestras = motorConvolucionTailA.getLatency() - motorConvolucionHeadA.getLatency();
     lineaCompensacionHead.setDelay (static_cast<float>(juce::jmax (0, latenciaCompensacionMuestras)));
 
-    setLatencySamples (motorConvolucionTail.getLatency());
+    setLatencySamples (motorConvolucionTailA.getLatency());
 
     lineaCompensacionDry.setDelay (static_cast<float>(getLatencySamples()));
     bufferDryCompensado.setSize (2, samplesPerBlock, false, true, true);
 
     bufferAgudosAir.setSize (2, samplesPerBlock, false, true, true);
+
+    bufferGananciaDuck.assign (static_cast<size_t>(samplesPerBlock), 1.0f);
 }
 
 juce::File Reverb402AudioProcessor::obtenerArchivoIRFijo (int indice)
@@ -243,11 +247,11 @@ float Reverb402AudioProcessor::estimarPisoDeRuidoDb (const juce::AudioBuffer<flo
     if (numSamples <= 0)
         return -60.0f;
 
-    const int muestrasPorVentana = static_cast<int> (0.05 * sampleRate);
+    const int muestrasPorVentana = static_cast<int>(0.05 * sampleRate);
     if (muestrasPorVentana <= 0 || numSamples < muestrasPorVentana)
         return -60.0f;
 
-    int inicioAnalisis = static_cast<int> (numSamples * 0.7);
+    int inicioAnalisis = static_cast<int>(numSamples * 0.7);
     int muestrasAAnalizar = numSamples - inicioAnalisis;
 
     std::vector<float> rmsPorVentanaDb;
@@ -461,25 +465,37 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     buffer.applyGain (inputGainLineal);
 
     bool duck = paramDuck->load() > 0.5f;
-    float gananciaDuckTarget = 1.0f;
-    
-    if (duck)
-    {
-        float muestraMax = buffer.getMagnitude (0, numMuestras);
-        float nivelEntrada = duckDetector.processSample (0, muestraMax);
 
+    if ((int) bufferGananciaDuck.size() < numMuestras)
+        bufferGananciaDuck.resize (static_cast<size_t>(numMuestras));
+
+    {
         const float umbralLineal = juce::Decibels::decibelsToGain (-36.0f);
         const float maxDuckDb = -32.0f;
 
-        if (nivelEntrada > umbralLineal)
+        for (int m = 0; m < numMuestras; ++m)
         {
-            float exceso = (nivelEntrada - umbralLineal) / (1.0f - umbralLineal);
-            exceso = juce::jlimit (0.0f, 1.0f, exceso);
+            float instantMax = std::abs (buffer.getSample (0, m));
+            if (totalNumInputChannels > 1)
+                instantMax = juce::jmax (instantMax, std::abs (buffer.getSample (1, m)));
 
-            exceso = std::pow (exceso, 0.7f);
+            float gananciaObjetivo = 1.0f;
 
-            float atenuacionDb = exceso * maxDuckDb;
-            gananciaDuckTarget = juce::Decibels::decibelsToGain (atenuacionDb);
+            if (duck)
+            {
+                float nivelEntrada = duckDetector.processSample (0, instantMax);
+
+                if (nivelEntrada > umbralLineal)
+                {
+                    float exceso = juce::jlimit (0.0f, 1.0f, (nivelEntrada - umbralLineal) / (1.0f - umbralLineal));
+                    exceso = std::pow (exceso, 0.7f);
+
+                    float atenuacionDb = exceso * maxDuckDb;
+                    gananciaObjetivo = juce::Decibels::decibelsToGain (atenuacionDb);
+                }
+            }
+
+            bufferGananciaDuck[static_cast<size_t>(m)] = gananciaObjetivo;
         }
     }
 
@@ -571,9 +587,13 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
                 juce::AudioBuffer<float> head, tail;
                 dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
 
+                if (head.getNumSamples() > 0)
+                    motorHeadInactivo().loadImpulseResponse (std::move (head), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
+                if (tail.getNumSamples() > 0)
+                    motorTailInactivo().loadImpulseResponse (std::move (tail), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
                 const juce::ScopedLock sl (cerrojoIR);
-                irHeadEnFondo.makeCopyOf (head);
-                irTailEnFondo.makeCopyOf (tail);
                 irCompletaModificada.makeCopyOf (irTemporal);
                 fsIRModificada = fsIR;
                 hayNuevaIRLista.store (true);
@@ -583,14 +603,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     if (hayNuevaIRLista.load() && gananciaTransicion < 0.01f)
     {
-        const juce::ScopedLock sl (cerrojoIR);
-
-        if (irHeadEnFondo.getNumSamples() > 0)
-            motorConvolucionHead.loadImpulseResponse (std::move (irHeadEnFondo), fsIRModificada, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-
-        if (irTailEnFondo.getNumSamples() > 0)
-            motorConvolucionTail.loadImpulseResponse (std::move (irTailEnFondo), fsIRModificada, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-        
+        usarMotorB.store (! usarMotorB.load());
         hayNuevaIRLista.store (false);
         enTransicion = false;
     }
@@ -638,31 +651,23 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     juce::dsp::AudioBlock<float> bloqueTail (bufferTail);
     juce::dsp::ProcessContextReplacing<float> contextoTail (bloqueTail);
 
-    {
-        const juce::ScopedLock sl (cerrojoIR);
+    auto& motorHead = motorHeadActivo();
+    auto& motorTail = motorTailActivo();
 
-        if (motorConvolucionHead.getCurrentIRSize() > 0)
-            motorConvolucionHead.process (contextoWet);
+    if (motorHead.getCurrentIRSize() > 0)
+        motorHead.process (contextoWet);
 
-        if (motorConvolucionTail.getCurrentIRSize() > 0)
-            motorConvolucionTail.process (contextoTail);
-    }
+    if (motorTail.getCurrentIRSize() > 0)
+        motorTail.process (contextoTail);
 
     lineaCompensacionHead.process (contextoWet);
 
-    if (motorConvolucionTail.getCurrentIRSize() > 0)
+    if (motorTail.getCurrentIRSize() > 0)
     {
         bufferWet.addFrom (0, 0, bufferTail, 0, 0, numMuestras);
         bufferWet.addFrom (1, 0, bufferTail, 1, 0, numMuestras);
     }   
     
-    for (int canal = 0; canal < 2; ++canal)
-    {
-        auto bloqueCanalUnico = bloqueWet.getSingleChannelBlock (canal);
-        juce::dsp::ProcessContextReplacing<float> contextoCanal (bloqueCanalUnico);
-        filtrosCorte[canal].process (contextoCanal);
-    }
-
     if (airActivo)
     {
         for (int canal = 0; canal < 2; ++canal)
@@ -719,6 +724,13 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         }
     }
 
+    for (int canal = 0; canal < 2; ++canal)
+    {
+        auto bloqueCanalUnico = bloqueWet.getSingleChannelBlock (canal);
+        juce::dsp::ProcessContextReplacing<float> contextoCanal (bloqueCanalUnico);
+        filtrosCorte[canal].process (contextoCanal);
+    }
+
     bufferDryCompensado.setSize (2, numMuestras, false, true, true);
     for (int canal = 0; canal < 2; ++canal)
     {
@@ -740,7 +752,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         gananciaRampa += (gananciaObjetivo - gananciaRampa) * 0.02f;
 
-        duckGainSmoothing += (gananciaDuckTarget - duckGainSmoothing) * 0.015f;
+        duckGainSmoothing += (bufferGananciaDuck[static_cast<size_t>(muestra)] - duckGainSmoothing) * 0.015f;
 
         for (int canal = 0; canal < totalNumOutputChannels; ++canal)
         {
@@ -794,8 +806,8 @@ void Reverb402AudioProcessor::obtenerCopiaIrActual (juce::AudioBuffer<float>& bu
 
         juce::dsp::ProcessSpec specCopia;
         specCopia.sampleRate = sampleRate;
-        specCopia.maximumBlockSize = static_cast<juce::uint32> (bufferDestino.getNumSamples());
-        specCopia.numChannels = static_cast<juce::uint32> (bufferDestino.getNumChannels());
+        specCopia.maximumBlockSize = static_cast<juce::uint32>(bufferDestino.getNumSamples());
+        specCopia.numChannels = static_cast<juce::uint32>(bufferDestino.getNumChannels());
 
         for (int canal = 0; canal < bufferDestino.getNumChannels(); ++canal)
         {
@@ -882,8 +894,10 @@ float Reverb402AudioProcessor::obtenerRMSOut(const int canal) const
 
 void Reverb402AudioProcessor::releaseResources()
 {
-    motorConvolucionHead.reset();
-    motorConvolucionTail.reset();
+    motorConvolucionHeadA.reset();
+    motorConvolucionHeadB.reset();
+    motorConvolucionTailA.reset();
+    motorConvolucionTailB.reset();
     lineaPreDelay.reset();
     duckDetector.reset();
 
@@ -893,7 +907,7 @@ void Reverb402AudioProcessor::releaseResources()
 
 int Reverb402AudioProcessor::getNumPrograms()
 {
-    return static_cast<int> (listaCompletaPresets.size());
+    return static_cast<int>(listaCompletaPresets.size());
 }
 
 int Reverb402AudioProcessor::getCurrentProgram()
@@ -937,7 +951,7 @@ void Reverb402AudioProcessor::setCurrentProgram (int index)
 const juce::String Reverb402AudioProcessor::getProgramName (int index)
 {
     if (index >= 0 && index < getNumPrograms())
-        return listaCompletaPresets[static_cast<size_t> (index)].nombre;
+        return listaCompletaPresets[static_cast<size_t>(index)].nombre;
         
     return "Default";
 }
@@ -1017,10 +1031,10 @@ void Reverb402AudioProcessor::guardarPresetRapido(const juce::String& nombrePres
 
 void Reverb402AudioProcessor::eliminarPresetActual (int index)
 {
-    if (index < 0 || index >= static_cast<int> (listaCompletaPresets.size()))
+    if (index < 0 || index >= static_cast<int>(listaCompletaPresets.size()))
         return;
 
-    const auto& preset = listaCompletaPresets[static_cast<size_t> (index)];
+    const auto& preset = listaCompletaPresets[static_cast<size_t>(index)];
 
     if (preset.esDeUsuario && preset.archivoOrigen.existsAsFile())
     {
@@ -1032,8 +1046,8 @@ void Reverb402AudioProcessor::eliminarPresetActual (int index)
 
 bool Reverb402AudioProcessor::esPresetDeUsuario (int index)
 {
-    if (index >= 0 && index < static_cast<int> (listaCompletaPresets.size()))
-        return listaCompletaPresets[static_cast<size_t> (index)].esDeUsuario;
+    if (index >= 0 && index < static_cast<int>(listaCompletaPresets.size()))
+        return listaCompletaPresets[static_cast<size_t>(index)].esDeUsuario;
         
     return false;
 }
@@ -1097,9 +1111,9 @@ void Reverb402AudioProcessor::setStateInformation (const void* data, int sizeInB
 
     juce::ValueTree estadoCompleto = juce::ValueTree::fromXml (*xmlEstado);
 
-    modoBActivo    = static_cast<bool> (estadoCompleto.getProperty ("modoBActivo", false));
-    programaActualA = static_cast<int>  (estadoCompleto.getProperty ("programaActualA", 0));
-    programaActualB = static_cast<int>  (estadoCompleto.getProperty ("programaActualB", 0));
+    modoBActivo = static_cast<bool>(estadoCompleto.getProperty ("modoBActivo", false));
+    programaActualA = static_cast<int> (estadoCompleto.getProperty ("programaActualA", 0));
+    programaActualB = static_cast<int> (estadoCompleto.getProperty ("programaActualB", 0));
 
     auto hijoEstadoA = estadoCompleto.getChildWithName ("EstadoA");
     auto hijoEstadoB = estadoCompleto.getChildWithName ("EstadoB");
