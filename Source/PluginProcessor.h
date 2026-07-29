@@ -87,8 +87,8 @@ private:
     juce::dsp::Convolution motorConvolucionTailB { juce::dsp::Convolution::Latency { 4096 } };
     std::atomic<bool> usarMotorB { false };
 
-    juce::dsp::Convolution& motorHeadActivo()   { return usarMotorB.load() ? motorConvolucionHeadB : motorConvolucionHeadA; }
-    juce::dsp::Convolution& motorTailActivo()   { return usarMotorB.load() ? motorConvolucionTailB : motorConvolucionTailA; }
+    juce::dsp::Convolution& motorHeadActivo() { return usarMotorB.load() ? motorConvolucionHeadB : motorConvolucionHeadA; }
+    juce::dsp::Convolution& motorTailActivo() { return usarMotorB.load() ? motorConvolucionTailB : motorConvolucionTailA; }
     juce::dsp::Convolution& motorHeadInactivo() { return usarMotorB.load() ? motorConvolucionHeadA : motorConvolucionHeadB; }
     juce::dsp::Convolution& motorTailInactivo() { return usarMotorB.load() ? motorConvolucionTailA : motorConvolucionTailB; }
 
