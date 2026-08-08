@@ -321,6 +321,34 @@ void Reverb402Component::paint (juce::Graphics& g)
     g.drawText ("In Gain", inputGainLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
     g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
     g.drawText ("In Gain", inputGainLabelBounds, juce::Justification::centred);
+
+    rightSidebarBounds.removeFromTop (70); //outputSpacer
+
+    auto duckingLabelBounds = rightSidebarBounds.removeFromTop (20);
+    g.setColour (juce::Colours::black);
+    g.drawText ("DUCKED", duckingLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("DUCKED", duckingLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("DUCKED", duckingLabelBounds, juce::Justification::centred);
+    rightSidebarBounds.removeFromTop (45); //btnDuck
+
+    auto airLabelBounds = rightSidebarBounds.removeFromTop (20);
+    g.setColour (juce::Colours::black);
+    g.drawText ("AIR", airLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("AIR", airLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("AIR", airLabelBounds, juce::Justification::centred);
+    rightSidebarBounds.removeFromTop (45); //btnAir
+
+    auto warmLabelBounds = rightSidebarBounds.removeFromTop (20);
+    g.setColour (juce::Colours::black);
+    g.drawText ("WARM", warmLabelBounds.translated (0.0f, -1.0f), juce::Justification::centred);
+    g.setColour (juce::Colours::white.withAlpha (0.9f));
+    g.drawText ("WARM", warmLabelBounds.translated (0.0f, 1.0f), juce::Justification::centred);
+    g.setColour (juce::Colour (0xFFEAEAEA).darker (0.4));
+    g.drawText ("WARM", warmLabelBounds, juce::Justification::centred);
 }
 
 void Reverb402Component::resized ()
@@ -356,15 +384,15 @@ void Reverb402Component::resized ()
     escalaDbOut.setBounds (escalaOutBounds);
     outMeterBounds.reduce(2, 0);
 
-    auto outputSpacerBounds = rightSidebarBounds.removeFromTop (80);
+    auto outputSpacerBounds = rightSidebarBounds.removeFromTop (100);
     auto btnDuckBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
     btnDuck.setBounds (btnDuckBounds);
 
-    outputSpacerBounds = rightSidebarBounds.removeFromTop (20);
+    outputSpacerBounds = rightSidebarBounds.removeFromTop (40);
     auto btnAirBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
     btnAir.setBounds (btnAirBounds);
 
-    outputSpacerBounds = rightSidebarBounds.removeFromTop (20);
+    outputSpacerBounds = rightSidebarBounds.removeFromTop (40);
     auto btnWarmBounds = rightSidebarBounds.removeFromTop (25).reduced (20.0f, 0.0f);
     btnWarm.setBounds (btnWarmBounds);
 

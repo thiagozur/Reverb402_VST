@@ -80,6 +80,7 @@ private:
 
     juce::AudioBuffer<float> modificarDecayIR (const juce::AudioBuffer<float>& irOriginal, float factorDecay, double fsIR);
     float factorCompensacionIR = 1.0f;
+    std::atomic<bool> calculandoNuevaIR { false };
 
     juce::dsp::Convolution motorConvolucionHeadA { juce::dsp::Convolution::Latency { 64 } };
     juce::dsp::Convolution motorConvolucionHeadB { juce::dsp::Convolution::Latency { 64 } };
@@ -114,7 +115,9 @@ private:
     juce::AudioBuffer<float> irOriginal;
     double fsIR = 44100.0;
 
-    float ultimoFactorDecay = -1.0f;
+    int contadorEsperaDecay { 0 };
+    float ultimoValorDecaySolicitado { -1.0f };
+    float ultimoFactorDecay { 1.0f };
 
     using FiltroCorteChain = juce::dsp::ProcessorChain<
         juce::dsp::IIR::Filter<float>,
@@ -187,7 +190,11 @@ private:
 
     std::atomic<bool> debeCargarNuevoArchivo { false };
     float gananciaTransicion = 1.0f;
-    bool enTransicion = false;
+    bool enTransicionIR { false };
+    int muestraTransicionActual { 0 };
+    
+    const int numMuestrasFadeOut { 750 };
+    const int numMuestrasFadeIn  { 750 };
 
     juce::AudioBuffer<float> irModificadaEnFondo;
     double fsIRModificada = 44100.0;

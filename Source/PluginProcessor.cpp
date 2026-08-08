@@ -41,13 +41,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
         juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (juce::roundToInt (val * 100.0f)) + " %"; })
     ));
 
-    juce::NormalisableRange<float> rangoDecay (0.1f, 5.0f, 0.1f);
-    rangoDecay.setSkewForCentre (1.0f);
-
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID ("decay", 1),
         "Decay",
-        rangoDecay,
+        juce::NormalisableRange<float> (0.1f, 5.0f, 0.1f),
         1.0f,
         juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (val, 1) + "x"; })
     ));
@@ -525,7 +522,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     float valorPreDelay = paramPreDelay->load();
     float valorHPF = paramHPF->load();
     float valorLPF = paramLPF->load();
-    float valorDecay = paramDecay->load();
+    float valorDecayActual = paramDecay->load();
     int irElegida = static_cast<int>(paramIRSelection->load());
     bool airActivo = paramAir->load() > 0.5f;
     bool warmActivo = paramWarm->load() > 0.5f; 
@@ -533,7 +530,6 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (irElegida != ultimaIrCargada)
     {
         ultimaIrCargada = irElegida;
-        enTransicion = true;
         debeCargarNuevoArchivo.store (true);
         ultimoFactorDecay = -1.0f;
     }
@@ -541,79 +537,85 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     if (airActivo != ultimoEstadoAir)
     {
         ultimoEstadoAir = airActivo;
-        enTransicion = true;
         ultimoFactorDecay = -1.0f;
     }
 
     if (warmActivo != ultimoEstadoWarm)
     {
         ultimoEstadoWarm = warmActivo;
-        enTransicion = true;
         ultimoFactorDecay = -1.0f;
     }
 
-    bool cambioSignificativoDecay = std::abs (valorDecay - ultimoFactorDecay) > 0.05f;
+    const float toleranciaDecay = 0.04f;
 
-    if ((debeCargarNuevoArchivo.load() || (cambioSignificativoDecay && irOriginal.getNumSamples() > 0)) && hiloDeFondo.getNumJobs() == 0)
+    if (debeCargarNuevoArchivo.load() || std::abs (valorDecayActual - ultimoFactorDecay) > toleranciaDecay)
     {
-        bool cargarNuevo = debeCargarNuevoArchivo.exchange (false);
-        ultimoFactorDecay = valorDecay;
-        enTransicion = true;
-
-        hiloDeFondo.addJob ([this, irElegida, valorDecay, cargarNuevo, airActivo, warmActivo]()
+        if (std::abs (valorDecayActual - ultimoValorDecaySolicitado) > 0.001f)
         {
-            if (cargarNuevo)
+            ultimoValorDecaySolicitado = valorDecayActual;
+            contadorEsperaDecay = 12;
+        }
+        else if (contadorEsperaDecay > 0)
+            --contadorEsperaDecay;
+
+        if ((contadorEsperaDecay == 0 || debeCargarNuevoArchivo.load()) && ! calculandoNuevaIR.load())
+        {
+            ultimoFactorDecay = valorDecayActual;
+            calculandoNuevaIR.store (true);
+
+            hiloDeFondo.addJob ([this, irElegida, valorDecayActual, airActivo, warmActivo]()
             {
-                juce::File archivoElegido = obtenerArchivoIRFijo (irElegida);
-                if (archivoElegido.existsAsFile())
+                if (debeCargarNuevoArchivo.exchange (false))
                 {
-                    irOriginal = cargarArchivoIRSeguro (archivoElegido, fsIR, factorCompensacionIR);
-                }
-            }
-
-            if (irOriginal.getNumSamples() > 0)
-            {
-                juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecay, fsIR);
-
-                if (airActivo)
-                {
-                    juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
-                    juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
-                    filtroAirShelf.process (contextoIR);
+                    juce::File archivoElegido = obtenerArchivoIRFijo (irElegida);
+                    if (archivoElegido.existsAsFile())
+                        irOriginal = cargarArchivoIRSeguro (archivoElegido, fsIR, factorCompensacionIR);
                 }
 
-                if (warmActivo)
+                if (irOriginal.getNumSamples() > 0)
                 {
-                    juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
-                    juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
-                    filtroWarmShelf.process (contextoIR);
+                    juce::AudioBuffer<float> irTemporal = modificarDecayIR (irOriginal, valorDecayActual, fsIR);
+
+                    if (airActivo)
+                    {
+                        juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
+                        juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
+                        filtroAirShelf.process (contextoIR);
+                    }
+
+                    if (warmActivo)
+                    {
+                        juce::dsp::AudioBlock<float> bloqueIR (irTemporal);
+                        juce::dsp::ProcessContextReplacing<float> contextoIR (bloqueIR);
+                        filtroWarmShelf.process (contextoIR);
+                    }
+
+                    juce::AudioBuffer<float> head, tail;
+                    dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
+
+                    if (head.getNumSamples() > 0)
+                        motorHeadInactivo().loadImpulseResponse (std::move (head), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
+                    if (tail.getNumSamples() > 0)
+                        motorTailInactivo().loadImpulseResponse (std::move (tail), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+
+                    const juce::ScopedLock sl (cerrojoIR);
+                    irCompletaModificada.makeCopyOf (irTemporal);
+                    fsIRModificada = fsIR;
+                    hayNuevaIRLista.store (true);
                 }
 
-                juce::AudioBuffer<float> head, tail;
-                dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
-
-                if (head.getNumSamples() > 0)
-                    motorHeadInactivo().loadImpulseResponse (std::move (head), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-
-                if (tail.getNumSamples() > 0)
-                    motorTailInactivo().loadImpulseResponse (std::move (tail), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
-
-                const juce::ScopedLock sl (cerrojoIR);
-                irCompletaModificada.makeCopyOf (irTemporal);
-                fsIRModificada = fsIR;
-                hayNuevaIRLista.store (true);
-            }
-        });
+                calculandoNuevaIR.store (false);
+            });
+        }
     }
 
-    if (hayNuevaIRLista.load() && gananciaTransicion < 0.01f)
+    if (hayNuevaIRLista.load() && !enTransicionIR)
     {
-        usarMotorB.store (! usarMotorB.load());
+        enTransicionIR = true;
+        muestraTransicionActual = 0;
         hayNuevaIRLista.store (false);
-        enTransicion = false;
     }
-    
-    float gananciaObjetivo = enTransicion ? 0.0f : 1.0f;
 
     float muestrasPreDelay = (valorPreDelay / 1000.0f) * static_cast<float>(spec.sampleRate);
     lineaPreDelay.setDelay (muestrasPreDelay);
@@ -671,8 +673,8 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         bufferWet.addFrom (0, 0, bufferTail, 0, 0, numMuestras);
         bufferWet.addFrom (1, 0, bufferTail, 1, 0, numMuestras);
-    }   
-    
+    }
+
     if (airActivo)
     {
         for (int canal = 0; canal < 2; ++canal)
@@ -738,6 +740,44 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         filtrosCorte[canal].process (contextoCanal);
     }
 
+    if (enTransicionIR)
+    {
+        for (int i = 0; i < numMuestras; ++i)
+        {
+            float gananciaWetFade = 1.0f;
+
+            if (muestraTransicionActual < numMuestrasFadeOut)
+            {
+                float progreso = static_cast<float>(muestraTransicionActual) / static_cast<float>(numMuestrasFadeOut);
+                gananciaWetFade = 0.5f * (1.0f + std::cos (progreso * juce::MathConstants<float>::pi));
+            }
+            else if (muestraTransicionActual == numMuestrasFadeOut)
+            {
+                usarMotorB.store (!usarMotorB.load());
+                gananciaWetFade = 0.0f;
+            }
+            else if (muestraTransicionActual < (numMuestrasFadeOut + numMuestrasFadeIn))
+            {
+                float progreso = static_cast<float>(muestraTransicionActual - numMuestrasFadeOut) / static_cast<float>(numMuestrasFadeIn);
+                gananciaWetFade = 0.5f * (1.0f - std::cos (progreso * juce::MathConstants<float>::pi));
+            }
+            else
+            {
+                enTransicionIR = false;
+                gananciaWetFade = 1.0f;
+            }
+
+            for (int canal = 0; canal < 2; ++canal)
+            {
+                auto* datos = bufferWet.getWritePointer (canal);
+                datos[i] *= gananciaWetFade;
+            }
+
+            if (enTransicionIR)
+                muestraTransicionActual++;
+        }
+    }
+
     bufferDryCompensado.setSize (2, numMuestras, false, true, true);
     for (int canal = 0; canal < 2; ++canal)
     {
@@ -757,8 +797,6 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     for (int muestra = 0; muestra < numMuestras; ++muestra)
     {
-        gananciaRampa += (gananciaObjetivo - gananciaRampa) * 0.02f;
-
         duckGainSmoothing += (bufferGananciaDuck[static_cast<size_t>(muestra)] - duckGainSmoothing) * 0.015f;
 
         for (int canal = 0; canal < totalNumOutputChannels; ++canal)
@@ -767,7 +805,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             auto* datosDry = bufferDryCompensado.getReadPointer (canal);
             auto* datosWet = bufferWet.getReadPointer (canal);
 
-            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente * gananciaRampa * duckGainSmoothing;
+            float senalWetNormalizada = datosWet[muestra] * compensacionInteligente * duckGainSmoothing * 0.85;
             
             float senalFinal = (datosDry[muestra] * gananciaDry) + (senalWetNormalizada * gananciaWet);
             
