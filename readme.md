@@ -1,6 +1,8 @@
 # Reverb402
 Este es un efecto de audio desarrollado  con el framework JUCE para la simulación de la reverb del aula 402 de la sede Caseros II de la UNTREF. El programa convoluciona un archivo de audio *dry* (sin procesar) con una respuesta al impulso medida in situ para lograr el efecto.
 
+![Screenshot](Resources/Img/Reverb402_UI.png)
+
 ## Prestaciones
 
 * **Visualización de la forma de onda de la respuesta al impulso**.
@@ -14,6 +16,8 @@ Este es un efecto de audio desarrollado  con el framework JUCE para la simulaci�
 * **Pre-delay (factor de escalado temporal)**: control del tiempo de retardo inicial (0 ms - 150ms).
 * **Controles de filtrado**: se implementaron filtros High-Pass (20 Hz - 500 Hz) y Low-Pass (1 kHz - 20 kHz) que actúan sobre la señal procesada. Ambos son filtros Butterworth de orden 2 (-12 dB/oct). Si se setean al mínimo (en el caso del High-Pass) o al máximo (en el caso del Low-Pass) de frecuencia quedan desactivados por completo.
 * **Mix**: este parámetro controla la proporción entre señal procesada y sin procesar a la salida. Un mix al 0% implica una totalidad de señal *dry* a la salida, mientras que al 100% implica una señal completamente *wet*. La señal procesada pasa previamente por un proceso de normalización por proporción (en base a los valores eficaces) para igualar su sonoridad con la de la señal original antes de mezclarlas.
+* **Efectos adicionales**: botones de *Ducked* (reducción del nivel de la señal wet mientras suena la señal original, estilo side-chain), *Air* (realce en agudos) y *Warm* (realce en graves).
+
 
 ## Formatos disponibles
 El efecto está disponible como VST3 y en formato Standalone.
