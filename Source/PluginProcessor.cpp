@@ -40,11 +40,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout Reverb402AudioProcessor::cre
         0.5f,
         juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (juce::roundToInt (val * 100.0f)) + " %"; })
     ));
-    
+
+    juce::NormalisableRange<float> rangoDecay (0.1f, 5.0f, 0.1f);
+    rangoDecay.setSkewForCentre (1.0f);
+
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID ("decay", 1),
         "Decay",
-        juce::NormalisableRange<float> (0.1f, 5.0f, 0.1f),
+        rangoDecay,
         1.0f,
         juce::AudioParameterFloatAttributes().withStringFromValueFunction ([](float val, int) { return juce::String (val, 1) + "x"; })
     ));
@@ -154,13 +157,13 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     duckDetector.reset();
 
     filtroAirShelf.prepare (spec);
-    *filtroAirShelf.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 8000.0f, 0.707f, juce::Decibels::decibelsToGain (5.5f));
+    *filtroAirShelf.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf (sampleRate, 7000.0f, 0.707f, juce::Decibels::decibelsToGain (9.0f));
 
     filtroAirHPF.prepare (spec);
     *filtroAirHPF.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass (sampleRate, 6000.0f, 0.707f);
 
     filtroWarmShelf.prepare (spec);
-    *filtroWarmShelf.state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (sampleRate, 350.0f, 0.707f, juce::Decibels::decibelsToGain (2.5f));
+    *filtroWarmShelf.state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf (sampleRate, 400.0f, 0.707f, juce::Decibels::decibelsToGain (6.0f));
     
     filtroWarmLPF.prepare (spec);
     *filtroWarmLPF.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass (sampleRate, 1200.0f, 0.707f);
@@ -549,7 +552,9 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         ultimoFactorDecay = -1.0f;
     }
 
-    if (debeCargarNuevoArchivo.load() || (valorDecay != ultimoFactorDecay && irOriginal.getNumSamples() > 0))
+    bool cambioSignificativoDecay = std::abs (valorDecay - ultimoFactorDecay) > 0.05f;
+
+    if ((debeCargarNuevoArchivo.load() || (cambioSignificativoDecay && irOriginal.getNumSamples() > 0)) && hiloDeFondo.getNumJobs() == 0)
     {
         bool cargarNuevo = debeCargarNuevoArchivo.exchange (false);
         ultimoFactorDecay = valorDecay;
@@ -677,8 +682,8 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         juce::dsp::ProcessContextReplacing<float> contextoAgudos (bloqueAgudos);
         filtroAirHPF.process (contextoAgudos);
 
-        const float driveAir = 2.0f;
-        const float cantidadArmonicos = 0.15f; 
+        const float driveAir = 5.0f;
+        const float cantidadArmonicos = 0.45f; 
 
         for (int canal = 0; canal < 2; ++canal)
         {
@@ -705,8 +710,9 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         juce::dsp::ProcessContextReplacing<float> contextoGraves (bloqueGraves);
         filtroWarmLPF.process (contextoGraves);
 
-        const float driveWarm = 2.0f;
-        const float cantidadArmonicosWarm = 0.35f;
+        const float driveWarm = 1.5f;
+        const float cantidadArmonicosWarm = 0.25f;
+        const float offsetAsimetria = 0.15f;
 
         for (int canal = 0; canal < 2; ++canal)
         {
@@ -716,10 +722,11 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             for (int i = 0; i < numMuestras; ++i)
             {
                 float x = datosGraves[i] * driveWarm;
-                
-                float saturadaPares = x + (0.35f * x * x) - (0.2f * x * x * x);
 
-                datosWet[i] += (saturadaPares - x) * cantidadArmonicosWarm;
+                float xAsimetrico = x + offsetAsimetria;
+                float saturado = std::tanh (xAsimetrico) - std::tanh (offsetAsimetria);
+
+                datosWet[i] += (saturado - x) * cantidadArmonicosWarm;
             }
         }
     }
