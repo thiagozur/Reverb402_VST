@@ -1,6 +1,29 @@
 ﻿#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+namespace
+{
+    constexpr float objetivoNormalizacionIR = 0.177f;
+
+    float factorNormalizacionIR (const juce::AudioBuffer<float>& ir, float objetivo)
+    {
+        double maxSumaCuadrados = 0.0;
+
+        for (int canal = 0; canal < ir.getNumChannels(); ++canal)
+        {
+            const float* datos = ir.getReadPointer (canal);
+            double suma = 0.0;
+
+            for (int i = 0; i < ir.getNumSamples(); ++i)
+                suma += static_cast<double>(datos[i]) * datos[i];
+
+            maxSumaCuadrados = juce::jmax (maxSumaCuadrados, suma);
+        }
+
+        return maxSumaCuadrados < 1.0e-8 ? 1.0f : static_cast<float>(objetivo / std::sqrt (maxSumaCuadrados));
+    }
+}
+
 Reverb402AudioProcessor::Reverb402AudioProcessor()
     : AudioProcessor (BusesProperties()
                     .withInput ("Input", juce::AudioChannelSet::stereo(), true)
@@ -233,9 +256,8 @@ void Reverb402AudioProcessor::dividirIREnHeadYTail (const juce::AudioBuffer<floa
     
     if (muestrasTail > 0)
     {
-        outTail.setSize (numCanales, muestrasTail, false, true, true);
-        for (int canal = 0; canal < numCanales; ++canal)
-            outTail.copyFrom (canal, 0, irCompleta, canal, muestrasHead, muestrasTail);
+        outTail.makeCopyOf (irCompleta);
+        outTail.clear (0, muestrasHead);
     }
     else
         outTail.setSize (numCanales, 0, false, true, true);
@@ -593,11 +615,15 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
                     juce::AudioBuffer<float> head, tail;
                     dividirIREnHeadYTail (irTemporal, fsIR, head, tail);
 
+                    const float gNorm = factorNormalizacionIR (irTemporal, objetivoNormalizacionIR);
+                    head.applyGain (gNorm);
+                    tail.applyGain (gNorm);
+
                     if (head.getNumSamples() > 0)
-                        motorHeadInactivo().loadImpulseResponse (std::move (head), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+                        motorHeadInactivo().loadImpulseResponse (std::move (head), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::no);
 
                     if (tail.getNumSamples() > 0)
-                        motorTailInactivo().loadImpulseResponse (std::move (tail), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::yes);
+                        motorTailInactivo().loadImpulseResponse (std::move (tail), fsIR, juce::dsp::Convolution::Stereo::yes, juce::dsp::Convolution::Trim::no, juce::dsp::Convolution::Normalise::no);
 
                     const juce::ScopedLock sl (cerrojoIR);
                     irCompletaModificada.makeCopyOf (irTemporal);
