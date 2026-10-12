@@ -233,8 +233,9 @@ void Reverb402AudioProcessor::dividirIREnHeadYTail (const juce::AudioBuffer<floa
     
     if (muestrasTail > 0)
     {
-        outTail.makeCopyOf (irCompleta);
-        outTail.clear (0, muestrasHead);
+        outTail.setSize (numCanales, muestrasTail, false, true, true);
+        for (int canal = 0; canal < numCanales; ++canal)
+            outTail.copyFrom (canal, 0, irCompleta, canal, muestrasHead, muestrasTail);
     }
     else
         outTail.setSize (numCanales, 0, false, true, true);
@@ -808,7 +809,7 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             
             float senalFinal = (datosDry[muestra] * gananciaDry) + (senalWetNormalizada * gananciaWet);
             
-            datosSalida[muestra] = juce::jlimit (-1.0f, 1.0f, senalFinal);
+            datosSalida[muestra] = senalFinal;
         }
         gananciaTransicion = gananciaRampa;
     }
