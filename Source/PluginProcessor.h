@@ -105,6 +105,10 @@ private:
     juce::AudioBuffer<float> bufferDryCompensado;
 
     juce::AudioBuffer<float> bufferAgudosAir;
+    juce::dsp::Oversampling<float> sobremuestreoAir { 2, 2, juce::dsp::Oversampling<float>::filterHalfBandFIREquiripple, true, true };
+    juce::dsp::DelayLine<float> lineaAlineacionAir { 256 };
+    int latenciaSobremuestreoAir = 0;
+    
     juce::AudioBuffer<float> bufferGravesWarm;
 
     static constexpr double duracionHeadMs = 180.0;

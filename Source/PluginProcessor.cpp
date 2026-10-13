@@ -200,13 +200,21 @@ void Reverb402AudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
     lineaCompensacionHead.prepare (specConvolucion);
     lineaCompensacionDry.prepare (specConvolucion);
 
+    sobremuestreoAir.initProcessing (static_cast<size_t>(samplesPerBlock));
+    sobremuestreoAir.reset();
+    latenciaSobremuestreoAir = juce::roundToInt (sobremuestreoAir.getLatencyInSamples());
+
+    lineaAlineacionAir.prepare (specConvolucion);
+    lineaAlineacionAir.setDelay (static_cast<float>(latenciaSobremuestreoAir));
+    lineaAlineacionAir.reset();
+
     bufferTail.setSize (2, samplesPerBlock, false, true, true);
     bufferWet.setSize (2, samplesPerBlock, false, true, true);
 
     latenciaCompensacionMuestras = motorConvolucionTailA.getLatency() - motorConvolucionHeadA.getLatency();
     lineaCompensacionHead.setDelay (static_cast<float>(juce::jmax (0, latenciaCompensacionMuestras)));
 
-    setLatencySamples (motorConvolucionTailA.getLatency());
+    setLatencySamples (motorConvolucionTailA.getLatency() + latenciaSobremuestreoAir);
 
     lineaCompensacionDry.setDelay (static_cast<float>(getLatencySamples()));
     bufferDryCompensado.setSize (2, samplesPerBlock, false, true, true);
@@ -392,7 +400,7 @@ juce::AudioBuffer<float> Reverb402AudioProcessor::modificarDecayIR (const juce::
 
     if (factorDecay == 1.0f)
         irResultado.makeCopyOf(irOriginal);
-    else if (factorDecay <1.0f)
+    else if (factorDecay < 1.0f)
     { 
         irResultado.makeCopyOf(irOriginal);
 
@@ -560,6 +568,12 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         ultimoEstadoAir = airActivo;
         ultimoFactorDecay = -1.0f;
+
+        if (airActivo)
+        {
+            sobremuestreoAir.reset();
+            filtroAirHPF.reset();
+        }
     }
 
     if (warmActivo != ultimoEstadoWarm)
@@ -706,26 +720,29 @@ void Reverb402AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         for (int canal = 0; canal < 2; ++canal)
             bufferAgudosAir.copyFrom (canal, 0, bufferWet, canal, 0, numMuestras);
 
-        juce::dsp::AudioBlock<float> bloqueAgudos (bufferAgudosAir);
+        auto bloqueAgudos = juce::dsp::AudioBlock<float> (bufferAgudosAir).getSubBlock (0, static_cast<size_t>(numMuestras));
         juce::dsp::ProcessContextReplacing<float> contextoAgudos (bloqueAgudos);
         filtroAirHPF.process (contextoAgudos);
 
         const float driveAir = 5.0f;
-        const float cantidadArmonicos = 0.45f; 
 
-        for (int canal = 0; canal < 2; ++canal)
+        auto bloqueSobremuestreado = sobremuestreoAir.processSamplesUp (bloqueAgudos);
+        for (size_t canal = 0; canal < bloqueSobremuestreado.getNumChannels(); ++canal)
         {
-            auto* datosWet = bufferWet.getWritePointer (canal);
-            auto* datosAgudos = bufferAgudosAir.getReadPointer (canal);
-
-            for (int i = 0; i < numMuestras; ++i)
-            {
-                float entrada = datosAgudos[i] * driveAir;
-                float saturada = std::tanh (entrada);
-
-                datosWet[i] += saturada * cantidadArmonicos;
-            }
+            auto* datos = bloqueSobremuestreado.getChannelPointer (canal);
+            for (size_t i = 0; i < bloqueSobremuestreado.getNumSamples(); ++i)
+                datos[i] = std::tanh (datos[i] * driveAir);
         }
+        sobremuestreoAir.processSamplesDown (bloqueAgudos);
+    }
+
+    lineaAlineacionAir.process (contextoWet);
+
+    if (airActivo)
+    {
+        const float cantidadArmonicos = 0.45f;
+        for (int canal = 0; canal < 2; ++canal)
+            bufferWet.addFrom (canal, 0, bufferAgudosAir, canal, 0, numMuestras, cantidadArmonicos);
     }
 
     if (warmActivo)
